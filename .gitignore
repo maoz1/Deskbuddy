@@ -1,0 +1,7 @@
+# PlatformIO build output & caches
+.pio/
+build.log
+
+# Editor / tooling
+.claude/
+.vscode/
