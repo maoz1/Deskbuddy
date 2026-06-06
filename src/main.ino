@@ -263,6 +263,7 @@ const char* timezonePosixByKey(const String& key) {
   if (key == "europe_central") return "CET-1CEST,M3.5.0/2,M10.5.0/3";
   if (key == "europe_east") return "EET-2EEST,M3.5.0/3,M10.5.0/4";
   if (key == "africa_south") return "SAST-2";
+  if (key == "israel") return "IST-2IDT,M3.4.4/26,M10.5.0";
   if (key == "middle_east_gulf") return "GST-4";
   if (key == "india") return "IST-5:30";
   if (key == "thailand") return "ICT-7";
@@ -294,6 +295,7 @@ const char* timezoneLabelByKey(const String& key) {
   if (key == "europe_central") return "Central Europe";
   if (key == "europe_east") return "Eastern Europe";
   if (key == "africa_south") return "South Africa";
+  if (key == "israel") return "Israel";
   if (key == "middle_east_gulf") return "Gulf / UAE";
   if (key == "india") return "India";
   if (key == "thailand") return "Thailand / ICT";
@@ -320,7 +322,7 @@ const char* timezoneLabelByKey(const String& key) {
 String sanitizeTimezoneKey(const String& key) {
   const char* supported[] = {
     "utc", "atlantic_azores", "europe_west", "uk", "europe_central", "europe_east",
-    "africa_south", "middle_east_gulf", "india", "thailand", "china",
+    "africa_south", "israel", "middle_east_gulf", "india", "thailand", "china",
     "us_eastern", "us_central", "us_mountain", "us_arizona", "us_pacific",
     "alaska", "hawaii", "canada_atlantic", "brazil_east", "argentina",
     "asia_tokyo", "korea", "australia_perth", "australia_darwin",
@@ -348,7 +350,7 @@ void appendTimezoneOptions(String& page, const String& selectedKey) {
   const TimezoneGroup groups[] = {
     {"Global", {"utc"}, 1},
     {"Europe", {"atlantic_azores", "europe_west", "uk", "europe_central", "europe_east"}, 5},
-    {"Africa & Middle East", {"africa_south", "middle_east_gulf"}, 2},
+    {"Africa & Middle East", {"africa_south", "israel", "middle_east_gulf"}, 3},
     {"Asia", {"india", "thailand", "china", "asia_tokyo", "korea"}, 5},
     {"North America", {"us_eastern", "us_central", "us_mountain", "us_arizona", "us_pacific", "alaska", "hawaii", "canada_atlantic"}, 8},
     {"South America", {"brazil_east", "argentina"}, 2},
