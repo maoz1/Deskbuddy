@@ -268,8 +268,9 @@ void updateStatusDynamic() {
 }
 
 void drawCurrentPageFull() {
-  // If the Hue page is showing but the bridge is no longer paired, fall back.
+  // If a conditional page is showing but no longer available, fall back.
   if (currentPage == PAGE_HUE && !hueReady()) currentPage = PAGE_HOME;
+  if (currentPage == PAGE_DEVICES && !(bambuEnabled || hpEnabled)) currentPage = PAGE_HOME;
 
   switch (currentPage) {
     case PAGE_HOME:    drawHomePageFull(); break;
@@ -277,6 +278,7 @@ void drawCurrentPageFull() {
     case PAGE_NOTES:   drawNotesPageFull(); break;
     case PAGE_STATUS:  drawStatusPageFull(); break;
     case PAGE_HUE:     drawHuePageFull(); break;
+    case PAGE_DEVICES: drawDevicesPageFull(); break;
   }
 
   if (focusMenuOpen && currentPage == PAGE_HOME) drawFocusMenuOverlay(true);
@@ -300,6 +302,7 @@ void updateCurrentPageDynamic() {
     case PAGE_NOTES:   updateNotesDynamic(); break;
     case PAGE_STATUS:  updateStatusDynamic(); break;
     case PAGE_HUE:     updateHueDynamic(); break;
+    case PAGE_DEVICES: updateDevicesDynamic(); break;
   }
 }
 
@@ -410,6 +413,7 @@ int buildNavPages(Page* out) {
   out[n++] = PAGE_NOTES;
   out[n++] = PAGE_STATUS;
   if (hueReady()) out[n++] = PAGE_HUE;
+  if (bambuEnabled || hpEnabled) out[n++] = PAGE_DEVICES;
   return n;
 }
 
@@ -420,6 +424,7 @@ const char* pageName(Page p) {
     case PAGE_NOTES:   return "Notes";
     case PAGE_STATUS:  return "Status";
     case PAGE_HUE:     return "Hue";
+    case PAGE_DEVICES: return "Devices";
   }
   return "";
 }
@@ -557,4 +562,90 @@ bool handleHueTouch(int x, int y) {
     return true;
   }
   return false;
+}
+
+// =========================================================
+// DEVICES PAGE (Bambu Lab printer + HP SmartTank)
+// =========================================================
+static String lastBambuCache = "";
+static String lastHpCache = "";
+
+static int devBambuY() { return 46; }
+static int devHpY() { return bambuEnabled ? (46 + 126) : 46; }
+
+static void drawDeviceCardFrame(int y, int h, const char* title) {
+  tft.fillRoundRect(8, y, 224, h, 12, COL_PANEL);
+  tft.drawRoundRect(8, y, 224, h, 12, COL_STROKE);
+  tft.setTextColor(COL_ACCENT, COL_PANEL);
+  tft.drawString(title, 18, y + 8, 2);
+}
+
+static void drawBambuValues(bool force) {
+  if (!bambuEnabled) return;
+  int y = devBambuY();
+  String cache = String(bambuOnline) + "|" + bambuState + "|" + String(bambuPct) + "|" +
+                 String(bambuRemainMin) + "|" + String((int)bambuNozzle) + "|" + String((int)bambuBed);
+  if (!force && cache == lastBambuCache) return;
+  lastBambuCache = cache;
+
+  tft.fillRect(12, y + 28, 216, 86, COL_PANEL);
+  if (!bambuOnline) {
+    tft.setTextColor(COL_DIM, COL_PANEL);
+    tft.drawString("Connecting...", 18, y + 44, 2);
+    return;
+  }
+
+  tft.setTextColor(COL_TEXT, COL_PANEL);
+  tft.drawString(bambuState, 18, y + 30, 2);
+
+  int barY = y + 56, barW = 204;
+  tft.fillRoundRect(18, barY, barW, 14, 7, COL_PANEL_ALT);
+  int fw = (barW * constrain(bambuPct, 0, 100)) / 100;
+  if (fw > 4) tft.fillRoundRect(18, barY, fw, 14, 7, COL_ACCENT);
+
+  tft.setTextColor(COL_DIM, COL_PANEL);
+  tft.drawString(String(bambuPct) + "%   " + String(bambuRemainMin) + " min left", 18, y + 76, 2);
+  tft.drawString("Nozzle " + String((int)bambuNozzle) + "C   Bed " + String((int)bambuBed) + "C", 18, y + 96, 1);
+}
+
+static void drawHpValues(bool force) {
+  if (!hpEnabled) return;
+  int y = devHpY();
+  String cache = String(hpOnline) + "|" + hpState + "|" + String(hpInk);
+  if (!force && cache == lastHpCache) return;
+  lastHpCache = cache;
+
+  tft.fillRect(12, y + 28, 216, 52, COL_PANEL);
+  if (!hpOnline) {
+    tft.setTextColor(COL_DIM, COL_PANEL);
+    tft.drawString("Offline", 18, y + 40, 2);
+    return;
+  }
+  tft.setTextColor(COL_TEXT, COL_PANEL);
+  tft.drawString(hpState, 18, y + 32, 2);
+  if (hpInk >= 0) {
+    tft.setTextColor(COL_DIM, COL_PANEL);
+    tft.drawString("Ink ~" + String(hpInk) + "%", 18, y + 56, 2);
+  }
+}
+
+void drawDevicesPageFull() {
+  tft.fillScreen(COL_BG);
+  drawTopBar("Devices");
+  drawNavBar();
+
+  lastBambuCache = "";
+  lastHpCache = "";
+  if (bambuEnabled) drawDeviceCardFrame(devBambuY(), 118, "Bambu Lab");
+  if (hpEnabled)    drawDeviceCardFrame(devHpY(), 86, "HP SmartTank");
+  drawBambuValues(true);
+  drawHpValues(true);
+
+  pageDirty = false;
+  lastDrawnPage = PAGE_DEVICES;
+}
+
+void updateDevicesDynamic() {
+  drawBambuValues(false);
+  drawHpValues(false);
 }

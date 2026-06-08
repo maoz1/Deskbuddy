@@ -62,6 +62,13 @@ function render() {
   $('prchLabel').value = cfg.prchLabel || '';
   $('hueEn').checked = !!cfg.hueEn;
   $('hueBridge').value = cfg.hueBridge || '';
+  $('bambuEn').checked = !!cfg.bambuEn;
+  $('bambuIP').value = cfg.bambuIP || '';
+  $('bambuCode').value = cfg.bambuCode || '';
+  $('bambuSerial').value = cfg.bambuSerial || '';
+  $('hpEn').checked = !!cfg.hpEn;
+  $('hpIP').value = cfg.hpIP || '';
+  renderDevStatus(cfg.devstat);
 
   // timezone select
   var tz = $('tz'); tz.innerHTML = '';
@@ -172,6 +179,24 @@ function buildHueControls() {
   });
 }
 
+function renderDevStatus(s) {
+  if (!s) return;
+  var b = $('bambuStat');
+  if ($('bambuEn').checked) {
+    b.style.display = '';
+    b.className = 'status ' + (s.bambuOnline ? 'ok' : 'bad');
+    b.textContent = s.bambuOnline
+      ? (s.bambuState + ' · ' + s.bambuPct + '% · ' + s.bambuRemain + ' min left · nozzle ' + s.bambuNozzle + '° bed ' + s.bambuBed + '°')
+      : 'Offline / connecting…';
+  } else { b.style.display = 'none'; }
+  var h = $('hpStat');
+  if ($('hpEn').checked) {
+    h.style.display = '';
+    h.className = 'status ' + (s.hpOnline ? 'ok' : 'bad');
+    h.textContent = s.hpOnline ? (s.hpState + (s.hpInk >= 0 ? (' · ink ~' + s.hpInk + '%') : '')) : 'Offline';
+  } else { h.style.display = 'none'; }
+}
+
 function collect() {
   var timers = [];
   document.querySelectorAll('[data-timer]').forEach(function (inp) { timers[+inp.dataset.timer] = +inp.value; });
@@ -183,7 +208,9 @@ function collect() {
     locname: $('locname').value, lat: parseFloat($('lat').value), lng: parseFloat($('lng').value),
     timers: timers, homeSlots: sel.homeSlots,
     prchEn: $('prchEn').checked, prchArea: $('prchArea').value, prchLabel: $('prchLabel').value,
-    hueEn: $('hueEn').checked, hueBridge: $('hueBridge').value
+    hueEn: $('hueEn').checked, hueBridge: $('hueBridge').value,
+    bambuEn: $('bambuEn').checked, bambuIP: $('bambuIP').value, bambuCode: $('bambuCode').value,
+    bambuSerial: $('bambuSerial').value, hpEn: $('hpEn').checked, hpIP: $('hpIP').value
   };
 }
 

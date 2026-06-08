@@ -30,6 +30,23 @@ void handleApiConfig() {
   d["hueStatus"] = hueStatusMsg;
   hueStatusMsg = "";
 
+  d["bambuEn"]     = bambuEnabled;
+  d["bambuIP"]     = bambuIP;
+  d["bambuCode"]   = bambuCode;
+  d["bambuSerial"] = bambuSerial;
+  d["hpEn"]        = hpEnabled;
+  d["hpIP"]        = hpIP;
+  JsonObject ds = d["devstat"].to<JsonObject>();
+  ds["bambuOnline"] = bambuOnline;
+  ds["bambuState"]  = bambuState;
+  ds["bambuPct"]    = bambuPct;
+  ds["bambuRemain"] = bambuRemainMin;
+  ds["bambuNozzle"] = (int)bambuNozzle;
+  ds["bambuBed"]    = (int)bambuBed;
+  ds["hpOnline"]    = hpOnline;
+  ds["hpState"]     = hpState;
+  ds["hpInk"]       = hpInk;
+
   JsonArray tm = d["timers"].to<JsonArray>();
   for (int i = 0; i < 6; i++) tm.add(timerPresetMin[i]);
 
@@ -119,6 +136,13 @@ void handleApiSave() {
   hueBridge  = doc["hueBridge"] | hueBridge;
   hueBridge.trim();
 
+  bambuEnabled = doc["bambuEn"] | false;
+  bambuIP     = doc["bambuIP"] | bambuIP;         bambuIP.trim();
+  bambuCode   = doc["bambuCode"] | bambuCode;     bambuCode.trim();
+  bambuSerial = doc["bambuSerial"] | bambuSerial; bambuSerial.trim();
+  hpEnabled   = doc["hpEn"] | false;
+  hpIP        = doc["hpIP"] | hpIP;               hpIP.trim();
+
   bool locationChanged = (fabsf(newLat - LAT) > 0.0001f) || (fabsf(newLng - LNG) > 0.0001f) || (newLoc != locationName);
 
   notesText = newNotes; buddyNickname = newNick; locationName = newLoc;
@@ -153,6 +177,12 @@ void handleApiSave() {
   prefs.putString("prchLabel", prchAreaLabel);
   prefs.putBool("hueEn", hueEnabled);
   prefs.putString("hueBridge", hueBridge);
+  prefs.putBool("bambuEn", bambuEnabled);
+  prefs.putString("bambuIP", bambuIP);
+  prefs.putString("bambuCode", bambuCode);
+  prefs.putString("bambuSerial", bambuSerial);
+  prefs.putBool("hpEn", hpEnabled);
+  prefs.putString("hpIP", hpIP);
   for (int i = 0; i < HOME_SLOT_COUNT; i++)
     prefs.putString((String("homeSlot") + String(i)).c_str(), homeWidgetKey(homeWidgetSlots[i]));
   for (int i = 0; i < 6; i++)

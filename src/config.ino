@@ -106,6 +106,13 @@ void loadStoredSettings() {
   hueBridge        = prefs.getString("hueBridge", "");
   hueUser          = prefs.getString("hueUser", "");
 
+  bambuEnabled     = prefs.getBool("bambuEn", false);
+  bambuIP          = prefs.getString("bambuIP", "");
+  bambuCode        = prefs.getString("bambuCode", "");
+  bambuSerial      = prefs.getString("bambuSerial", "");
+  hpEnabled        = prefs.getBool("hpEn", false);
+  hpIP             = prefs.getString("hpIP", "");
+
   for (int i = 0; i < HOME_SLOT_COUNT; i++) {
     String key = String("homeSlot") + String(i);
     homeWidgetSlots[i] = homeWidgetFromKey(prefs.getString(key.c_str(), homeWidgetKey(homeWidgetSlots[i])));

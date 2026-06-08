@@ -20,6 +20,7 @@
     <button type="button" class="tab" data-tab="general">General</button>
     <button type="button" class="tab" data-tab="alerts">Alerts</button>
     <button type="button" class="tab" data-tab="hue">Hue</button>
+    <button type="button" class="tab" data-tab="devices">Devices</button>
   </div>
 
   <div class="wrap">
@@ -157,6 +158,29 @@
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- DEVICES -->
+    <div class="pane" data-pane="devices">
+      <div class="card">
+        <h2>Bambu Lab printer</h2>
+        <div class="desc">Live status over local MQTT. Turn on <b>LAN Mode</b> on the printer first (Settings → WLAN).</div>
+        <label class="check"><input type="checkbox" id="bambuEn">Enable Bambu monitoring</label>
+        <div class="row">
+          <div class="field"><label class="lbl">Printer IP</label><input id="bambuIP" placeholder="192.168.1.50"></div>
+          <div class="field"><label class="lbl">Access code</label><input id="bambuCode" placeholder="8-digit LAN code"></div>
+        </div>
+        <div class="field"><label class="lbl">Serial number</label><input id="bambuSerial" placeholder="01P00A000000000"></div>
+        <div class="status" id="bambuStat" style="display:none;"></div>
+      </div>
+      <div class="card">
+        <h2>HP SmartTank printer</h2>
+        <div class="desc">Status from the printer's local web server (no cloud).</div>
+        <label class="check"><input type="checkbox" id="hpEn">Enable HP monitoring</label>
+        <div class="field"><label class="lbl">Printer IP</label><input id="hpIP" placeholder="192.168.1.60"></div>
+        <div class="status" id="hpStat" style="display:none;"></div>
+      </div>
+      <div class="note">Status refreshes when you reload this page. Both printers must be on the same network as Deskbuddy.</div>
     </div>
   </div>
 

@@ -17,6 +17,7 @@
 #include <WebServer.h>
 #include <Preferences.h>
 #include <LittleFS.h>
+#include <PubSubClient.h>
 #include <SPI.h>
 #include <XPT2046_Touchscreen.h>
 #include <math.h>
@@ -162,7 +163,8 @@ enum Page {
   PAGE_WEATHER = 1,
   PAGE_NOTES = 2,
   PAGE_STATUS = 3,
-  PAGE_HUE = 4          // only present in nav when the Hue bridge is paired
+  PAGE_HUE = 4,         // only present in nav when the Hue bridge is paired
+  PAGE_DEVICES = 5      // only present in nav when a device is enabled
 };
 
 Page currentPage = PAGE_HOME;
@@ -171,6 +173,29 @@ Page lastDrawnPage = (Page)-1;
 // Hue control-screen state (all lights)
 bool huePgOn = false;
 int  huePgBri = 128;
+
+// =========================================================
+// HOME DEVICES (Bambu Lab printer via MQTT, HP printer via HTTP)
+// =========================================================
+bool bambuEnabled = false;
+String bambuIP = "";
+String bambuCode = "";       // LAN access code
+String bambuSerial = "";
+bool hpEnabled = false;
+String hpIP = "";
+
+// Bambu live status
+bool bambuOnline = false;
+String bambuState = "offline";   // IDLE / RUNNING / PAUSE / FINISH / FAILED
+int bambuPct = 0;
+int bambuRemainMin = 0;
+float bambuNozzle = 0, bambuBed = 0;
+String bambuFile = "";
+
+// HP live status
+bool hpOnline = false;
+String hpState = "offline";
+int hpInk = -1;                  // -1 = unknown
 
 unsigned long lastClockTick = 0;
 unsigned long lastDataTick  = 0;
@@ -1086,6 +1111,7 @@ void loop() {
   updateTimerDoneDialogState();
   updateRedAlertState();
   pollOrefAlert();
+  devicesLoop();
   handleAutoSleep();
 
   // Red alert takes over the whole screen until it expires or is tapped.
