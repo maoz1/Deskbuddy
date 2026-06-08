@@ -20,6 +20,7 @@
 #include <XPT2046_Touchscreen.h>
 #include <math.h>
 #include "secrets.h"   // WIFI_SSID / WIFI_PASS  (private, gitignored - see secrets.h.example)
+#include "hue.h"        // Philips Hue red-alert integration
 
 // Forward declarations (needed because this is a .cpp, not an .ino)
 void setWifiEnabled(bool enabled);
@@ -443,20 +444,7 @@ unsigned long prchAlertStartedMs = 0;
 unsigned long prchLastPollMs = 0;
 String cachePrchAlert = "";        // flash-state cache for the overlay
 
-// =========================================================
-// PHILIPS HUE (local v1 API over HTTP) - flash all lights red on alert
-// =========================================================
-bool hueEnabled = false;
-String hueBridge = "";             // bridge IP, e.g. 192.168.68.110
-String hueUser = "";              // API username/token from pairing
-String hueStatusMsg = "";         // transient pairing feedback for the web UI
-bool hueSaved = false;            // do we have a captured pre-alert state?
-bool hueSavedAllOn = false;
-bool hueSavedOn = false;
-int hueSavedBri = 254;
-String hueSavedColor = "";        // JSON fragment to restore color (xy/ct/hue+sat)
-unsigned long hueLastFlashMs = 0;
-const unsigned long HUE_REFLASH_MS = 12000UL;  // re-trigger the breathe effect
+// Philips Hue state and API now live in hue.h / hue.cpp
 bool flashModeEnabled = false;
 int timerPresetMin[6] = {1, 5, 10, 15, 25, 30};
 bool wifiEnabled = true;
@@ -1806,158 +1794,6 @@ void drawTimerDoneOverlay(bool force = false) {
     tft.setTextColor(COL_DIM, COL_PANEL_ALT);
     tft.drawCentreString(countdown.c_str(), TIMER_DONE_X + TIMER_DONE_W / 2, TIMER_DONE_Y + 82, 1);
   }
-}
-
-// =========================================================
-// PHILIPS HUE
-// =========================================================
-bool hueRequest(const char* method, const String& path, const String& body, String& resp) {
-  if (hueBridge.length() == 0) return false;
-  if (WiFi.status() != WL_CONNECTED) return false;
-
-  WiFiClient client;
-  HTTPClient http;
-  http.setConnectTimeout(2500);
-  http.setTimeout(2500);
-  if (!http.begin(client, "http://" + hueBridge + path)) return false;
-
-  int code;
-  if (strcmp(method, "PUT") == 0)       code = http.PUT(body);
-  else if (strcmp(method, "POST") == 0) code = http.POST(body);
-  else                                  code = http.GET();
-
-  if (code > 0) resp = http.getString();
-  http.end();
-  return code > 0;
-}
-
-// Auto-discover the bridge IP via Hue's cloud discovery service.
-String hueFindBridge() {
-  if (WiFi.status() != WL_CONNECTED) return "WiFi not connected";
-
-  WiFiClientSecure client;
-  client.setInsecure();
-  HTTPClient http;
-  http.setConnectTimeout(6000);
-  http.setTimeout(6000);
-  if (!http.begin(client, "https://discovery.meethue.com/")) return "Could not start discovery";
-
-  int code = http.GET();
-  if (code != 200) { http.end(); return "Discovery service returned " + String(code); }
-  String body = http.getString();
-  http.end();
-
-  JsonDocument doc;
-  if (deserializeJson(doc, body)) return "Could not parse discovery response";
-  if (!doc.is<JsonArray>() || doc.size() == 0) return "No bridge found on this network";
-
-  String ip = doc[0]["internalipaddress"] | "";
-  if (ip.length() == 0) return "Bridge found but no IP returned";
-
-  hueBridge = ip;
-  prefs.putString("hueBridge", hueBridge);
-  return "Found bridge at " + ip + " - now press the bridge button and Pair";
-}
-
-// Press the bridge link button first, then call this.
-String huePair() {
-  if (hueBridge.length() == 0) return "Set the bridge IP first";
-  String resp;
-  if (!hueRequest("POST", "/api", "{\"devicetype\":\"deskbuddy#esp32\"}", resp))
-    return "Bridge unreachable at " + hueBridge;
-
-  JsonDocument doc;
-  if (deserializeJson(doc, resp)) return "Unexpected bridge response";
-
-  if (!doc[0]["success"]["username"].isNull()) {
-    hueUser = doc[0]["success"]["username"].as<String>();
-    prefs.putString("hueUser", hueUser);
-    return "Paired successfully";
-  }
-  if ((doc[0]["error"]["type"] | 0) == 101)
-    return "Press the round button on the Hue bridge, then tap Pair again";
-  return "Pairing failed";
-}
-
-void hueCaptureState() {
-  hueSaved = false;
-  if (!hueEnabled || hueUser.length() == 0) return;
-
-  String resp;
-  if (!hueRequest("GET", "/api/" + hueUser + "/groups/0", "", resp)) return;
-
-  JsonDocument doc;
-  if (deserializeJson(doc, resp)) return;
-
-  hueSavedAllOn = doc["state"]["all_on"] | false;
-  hueSavedOn    = doc["action"]["on"] | false;
-  hueSavedBri   = doc["action"]["bri"] | 254;
-
-  String mode = doc["action"]["colormode"] | "";
-  if (mode == "xy" && doc["action"]["xy"].is<JsonArray>()) {
-    JsonArray xy = doc["action"]["xy"];
-    hueSavedColor = "\"xy\":[" + String((float)xy[0], 4) + "," + String((float)xy[1], 4) + "]";
-  } else if (mode == "ct") {
-    hueSavedColor = "\"ct\":" + String((int)(doc["action"]["ct"] | 366));
-  } else if (!doc["action"]["hue"].isNull()) {
-    hueSavedColor = "\"hue\":" + String((int)(doc["action"]["hue"] | 0)) +
-                    ",\"sat\":" + String((int)(doc["action"]["sat"] | 0));
-  } else {
-    hueSavedColor = "";
-  }
-  hueSaved = true;
-}
-
-void hueAlertOn() {
-  if (!hueEnabled || hueUser.length() == 0) return;
-  hueCaptureState();
-  String resp;
-  hueRequest("PUT", "/api/" + hueUser + "/groups/0/action",
-             "{\"on\":true,\"bri\":254,\"hue\":0,\"sat\":254,\"alert\":\"lselect\"}", resp);
-  hueLastFlashMs = millis();
-}
-
-void hueReflash() {
-  if (!hueEnabled || hueUser.length() == 0) return;
-  if (millis() - hueLastFlashMs < HUE_REFLASH_MS) return;
-  hueLastFlashMs = millis();
-  String resp;
-  hueRequest("PUT", "/api/" + hueUser + "/groups/0/action",
-             "{\"on\":true,\"bri\":254,\"hue\":0,\"sat\":254,\"alert\":\"lselect\"}", resp);
-}
-
-String hueTest() {
-  if (hueBridge.length() == 0) return "Set the bridge IP and tap Save first";
-  if (hueUser.length() == 0)   return "Not paired yet - press the bridge button and tap Pair";
-
-  String resp;
-  if (!hueRequest("GET", "/api/" + hueUser + "/groups/0", "", resp))
-    return "Bridge unreachable at " + hueBridge;
-  if (resp.indexOf("unauthorized") >= 0)
-    return "Bridge rejected the saved token - pair again";
-
-  bool wasEnabled = hueEnabled;
-  hueEnabled = true;          // allow the test even before the checkbox is saved
-  hueAlertOn();
-  delay(3500);
-  hueAlertOff();
-  hueEnabled = wasEnabled;
-  return "Test OK - lights flashed red and restored";
-}
-
-void hueAlertOff() {
-  if (!hueEnabled || hueUser.length() == 0) return;
-  String body;
-  if (hueSaved && !hueSavedAllOn && !hueSavedOn) {
-    body = "{\"on\":false,\"alert\":\"none\"}";
-  } else {
-    body = "{\"on\":true,\"bri\":" + String(hueSavedBri) +
-           (hueSavedColor.length() ? ("," + hueSavedColor) : "") +
-           ",\"alert\":\"none\"}";
-  }
-  String resp;
-  hueRequest("PUT", "/api/" + hueUser + "/groups/0/action", body, resp);
-  hueSaved = false;
 }
 
 // =========================================================
