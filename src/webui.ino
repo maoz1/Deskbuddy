@@ -244,6 +244,16 @@ void handleApiHueControl() {
   server.send(200, "application/json", "{\"ok\":true}");
 }
 
+// Serve a file from LittleFS with no-cache headers so the browser always
+// fetches the latest UI (avoids stale-page bugs after an uploadfs).
+void sendAsset(const char* path, const char* type) {
+  fs::File f = LittleFS.open(path, "r");
+  if (!f) { server.send(404, "text/plain", "Not found"); return; }
+  server.sendHeader("Cache-Control", "no-store, must-revalidate");
+  server.streamFile(f, type);
+  f.close();
+}
+
 void setupWebServer() {
   LittleFS.begin(true);
 
@@ -255,9 +265,10 @@ void setupWebServer() {
   server.on("/api/huetest", HTTP_POST, handleApiHueTest);
   server.on("/api/huecontrol", HTTP_POST, handleApiHueControl);
 
-  server.serveStatic("/style.css", LittleFS, "/style.css");
-  server.serveStatic("/app.js", LittleFS, "/app.js");
-  server.serveStatic("/", LittleFS, "/index.html");
+  server.on("/", HTTP_GET, []() { sendAsset("/index.html", "text/html"); });
+  server.on("/index.html", HTTP_GET, []() { sendAsset("/index.html", "text/html"); });
+  server.on("/style.css", HTTP_GET, []() { sendAsset("/style.css", "text/css"); });
+  server.on("/app.js", HTTP_GET, []() { sendAsset("/app.js", "application/javascript"); });
 
   server.onNotFound([]() { server.send(404, "text/plain", "Not found"); });
   server.begin();
