@@ -424,6 +424,25 @@ unsigned long focusRemainingSec = 0;
 bool timerDoneDialogOpen = false;
 unsigned long timerDoneDialogStartedMs = 0;
 const unsigned long TIMER_DONE_DIALOG_MS = 60UL * 1000UL;
+
+// =========================================================
+// HOME FRONT COMMAND (Pikud HaOref) RED ALERT
+// UNOFFICIAL data source - NOT a substitute for the official
+// Home Front Command app/sirens. Best-effort companion only.
+// =========================================================
+const char* OREF_ALERTS_URL = "https://www.oref.org.il/WarningMessages/alert/alerts.json";
+const int   BUZZER_PIN = 26;                              // CYD speaker pin (GPIO26 / DAC1)
+const unsigned long PRCH_POLL_MS = 4000UL;               // poll every 4s
+const unsigned long PRCH_ALERT_DURATION_MS = 90UL * 1000UL; // show alert for 90s
+
+bool prchEnabled = false;          // feature on/off
+String prchAreaMatch = "";         // Hebrew area substring to match (empty = all Israel)
+String prchAreaLabel = "";         // English label shown on the alert screen
+bool prchAlertActive = false;      // alert overlay currently shown
+String prchLastAlertId = "";       // de-dupe consecutive polls of the same alert
+unsigned long prchAlertStartedMs = 0;
+unsigned long prchLastPollMs = 0;
+String cachePrchAlert = "";        // flash-state cache for the overlay
 bool flashModeEnabled = false;
 int timerPresetMin[6] = {1, 5, 10, 15, 25, 30};
 bool wifiEnabled = true;
@@ -1010,6 +1029,10 @@ void loadStoredSettings() {
   timezoneKey      = sanitizeTimezoneKey(prefs.getString("tz", "europe_central"));
   flashModeEnabled = prefs.getBool("flashMode", false);
   wifiEnabled      = prefs.getBool("wifiEnabled", true);
+
+  prchEnabled      = prefs.getBool("prchEn", false);
+  prchAreaMatch    = prefs.getString("prchArea", "");
+  prchAreaLabel    = prefs.getString("prchLabel", "");
 
   for (int i = 0; i < HOME_SLOT_COUNT; i++) {
     String key = String("homeSlot") + String(i);
@@ -1768,6 +1791,114 @@ void drawTimerDoneOverlay(bool force = false) {
 }
 
 // =========================================================
+// HOME FRONT COMMAND RED ALERT
+// =========================================================
+void prchSilence() {
+  noTone(BUZZER_PIN);
+  digitalWrite(BUZZER_PIN, LOW);
+}
+
+void triggerRedAlert() {
+  prchAlertActive = true;
+  prchAlertStartedMs = millis();
+  cachePrchAlert = "";
+  wakeDisplay();
+}
+
+void dismissRedAlert() {
+  if (!prchAlertActive) return;
+  prchAlertActive = false;
+  prchSilence();
+  if (!sleepDimmed && !sleepOff) setBacklight(BL_FULL);
+  pageDirty = true;
+}
+
+void updateRedAlertState() {
+  if (!prchAlertActive) return;
+  if (millis() - prchAlertStartedMs >= PRCH_ALERT_DURATION_MS) {
+    dismissRedAlert();
+  }
+}
+
+void drawRedAlertOverlay(bool force) {
+  if (!prchAlertActive) return;
+
+  bool flashOn = (millis() / 400UL) % 2UL == 0;
+  // Pulsing siren tone (no-op if no speaker is wired to GPIO26).
+  if (flashOn) tone(BUZZER_PIN, 2200); else noTone(BUZZER_PIN);
+  setBacklight(flashOn ? BL_FULL : BL_DIM);
+
+  String key = String(flashOn ? 1 : 0);
+  if (!force && key == cachePrchAlert) return;
+  cachePrchAlert = key;
+
+  uint16_t bg = flashOn ? TFT_RED : 0x6000;  // bright red / dark red
+  tft.fillRect(0, 0, SCREEN_W, SCREEN_H, bg);
+  tft.setTextColor(TFT_WHITE, bg);
+  tft.drawCentreString("! ALERT !", SCREEN_W / 2, 54, 4);
+  tft.drawCentreString("TAKE SHELTER", SCREEN_W / 2, 116, 2);
+
+  String label = prchAreaLabel.length() ? prchAreaLabel : "Your area";
+  tft.drawCentreString(label.c_str(), SCREEN_W / 2, 158, 2);
+
+  tft.drawCentreString("Tap to dismiss", SCREEN_W / 2, 232, 1);
+  tft.setTextColor(0xFFDB, bg);
+  tft.drawCentreString("Unofficial - not a substitute", SCREEN_W / 2, 286, 1);
+  tft.drawCentreString("for Home Front Command", SCREEN_W / 2, 300, 1);
+}
+
+void pollOrefAlert() {
+  if (!prchEnabled) return;
+  if (prchAlertActive) return;
+  if (WiFi.status() != WL_CONNECTED) return;
+  if (millis() - prchLastPollMs < PRCH_POLL_MS) return;
+  prchLastPollMs = millis();
+
+  WiFiClientSecure client;
+  client.setInsecure();
+
+  HTTPClient http;
+  http.setConnectTimeout(4000);
+  http.setTimeout(4000);
+  if (!http.begin(client, OREF_ALERTS_URL)) return;
+  http.addHeader("Referer", "https://www.oref.org.il/");
+  http.addHeader("X-Requested-With", "XMLHttpRequest");
+  http.addHeader("Accept", "application/json, text/plain, */*");
+  http.setUserAgent("Mozilla/5.0 (Deskbuddy ESP32)");
+
+  int code = http.GET();
+  if (code != 200) { http.end(); return; }
+
+  String body = http.getString();
+  http.end();
+
+  // Empty body (possibly with a BOM/whitespace) means no active alert.
+  int brace = body.indexOf('{');
+  if (brace < 0) return;
+  body = body.substring(brace);
+
+  JsonDocument doc;  // heap-backed; nationwide alerts can list many areas
+  if (deserializeJson(doc, body)) return;
+
+  JsonArray data = doc["data"].as<JsonArray>();
+  if (data.isNull()) return;
+
+  bool matched = false;
+  for (JsonVariant v : data) {
+    const char* area = v.as<const char*>();
+    if (!area) continue;
+    if (prchAreaMatch.length() == 0) { matched = true; break; }  // empty = all Israel
+    if (String(area).indexOf(prchAreaMatch) >= 0) { matched = true; break; }
+  }
+  if (!matched) return;
+
+  String idStr = doc["id"].as<String>();
+  if (idStr.length() && idStr == prchLastAlertId) return;  // already shown this one
+  prchLastAlertId = idStr;
+  triggerRedAlert();
+}
+
+// =========================================================
 // PAGES
 // =========================================================
 void drawHomePageFull() {
@@ -2188,6 +2319,9 @@ void handleRoot() {
   String tz     = sanitizeTimezoneKey(prefs.getString("tz", "europe_central"));
   String nickname = prefs.getString("nickname", "");
   bool flashMode = prefs.getBool("flashMode", false);
+  bool prchEn = prefs.getBool("prchEn", false);
+  String prchArea = prefs.getString("prchArea", "");
+  String prchLabel = prefs.getString("prchLabel", "");
   String homeSlotKeys[HOME_SLOT_COUNT];
   for (int i = 0; i < HOME_SLOT_COUNT; i++) {
     homeSlotKeys[i] = prefs.getString((String("homeSlot") + String(i)).c_str(), homeWidgetKey(homeWidgetSlots[i]));
@@ -2372,6 +2506,13 @@ void handleRoot() {
   page += "<div><label class='label'>Latitude</label><input name='lat' value='" + String(LAT, 6) + "'></div>";
   page += "<div><label class='label'>Longitude</label><input name='lng' value='" + String(LNG, 6) + "'></div>";
   page += "</div><div class='footer-note'>Example Berlin: latitude 52.5200, longitude 13.4050.</div></div>";
+  page += "<div class='settings-block'><span class='settings-title'>Red Alert (Home Front Command)</span>";
+  page += "<div class='settings-desc'>Polls the unofficial Pikud HaOref feed and shows a full-screen alarm when your area is targeted. <b>Unofficial &mdash; not a substitute for the official Home Front Command app or sirens.</b></div>";
+  page += "<label style='display:flex;align-items:center;gap:10px;color:#edf2f7;margin-bottom:12px;'><input type='checkbox' name='prchEn' value='1'" + String(prchEn ? " checked" : "") + " style='width:auto;'>Enable red alert monitoring</label>";
+  page += "<div class='grid'>";
+  page += "<div><label class='label'>Area match (Hebrew, as in Pikud HaOref)</label><input name='prchArea' value='" + htmlEscape(prchArea) + "' placeholder='example: תל אביב'></div>";
+  page += "<div><label class='label'>Display label (English)</label><input name='prchLabel' maxlength='40' value='" + htmlEscape(prchLabel) + "' placeholder='example: Tel Aviv'></div>";
+  page += "</div><div class='footer-note'>Leave the area blank to alert on <b>any</b> alert in Israel. Matching is a substring of the official Hebrew area name.</div></div>";
   page += "</div></div>";
 
   page += "<div class='panel' data-panel='widgets'>";
@@ -2395,6 +2536,10 @@ void handleRoot() {
 
   page += "<button type='submit'>Save to Deskbuddy</button>";
   page += "</div></div></form>";
+  page += "<form method='POST' action='/testalert' class='stack' style='margin-top:12px;'>";
+  page += "<button type='submit' style='background:#c0392b;'>Test red alert on device</button>";
+  page += "<div class='footer-note'>Triggers the full-screen alarm now so you can verify the screen and buzzer. Save your settings first.</div>";
+  page += "</form>";
   page += "<script>";
   page += "var colorNames={accent:{standard:'Standard',ice:'Ice',white:'White',cyan:'Cyan',mint:'Mint',green:'Green',blue:'Blue',purple:'Purple',pink:'Pink',orange:'Orange',amber:'Amber',red:'Red'},text:{standard:'Standard',ice:'Ice',white:'White',cyan:'Cyan',mint:'Mint',green:'Green',blue:'Blue',purple:'Purple',pink:'Pink',orange:'Orange',amber:'Amber',red:'Red'},bg:{slate:'Slate',deep:'Deep black',nordic:'Nordic blue',forest:'Forest',coffee:'Coffee',soft:'Soft dark',midnight:'Midnight',graphite:'Graphite',garnet:'Garnet',ochre:'Ochre'}};";
   page += "var panelStorageKey='deskbuddy-panel-state-v1';";
@@ -2467,6 +2612,13 @@ void handleSave() {
   sleepIntervalMin = constrain(newSleepMin, 0, 120);
   bool newFlashMode = server.hasArg("flashMode");
 
+  prchEnabled   = server.hasArg("prchEn");
+  prchAreaMatch = server.hasArg("prchArea") ? server.arg("prchArea") : prchAreaMatch;
+  prchAreaLabel = server.hasArg("prchLabel") ? server.arg("prchLabel") : prchAreaLabel;
+  prchAreaMatch.trim();
+  prchAreaLabel.trim();
+  if (prchAreaLabel.length() > 40) prchAreaLabel = prchAreaLabel.substring(0, 40);
+
   bool locationChanged =
     (fabsf(newLat - LAT) > 0.0001f) ||
     (fabsf(newLng - LNG) > 0.0001f) ||
@@ -2505,6 +2657,9 @@ void handleSave() {
   prefs.putFloat("lng", LNG);
   prefs.putInt("sleepMin", sleepIntervalMin);
   prefs.putBool("flashMode", flashModeEnabled);
+  prefs.putBool("prchEn", prchEnabled);
+  prefs.putString("prchArea", prchAreaMatch);
+  prefs.putString("prchLabel", prchAreaLabel);
   for (int i = 0; i < HOME_SLOT_COUNT; i++) {
     String key = String("homeSlot") + String(i);
     prefs.putString(key.c_str(), homeWidgetKey(homeWidgetSlots[i]));
@@ -2549,9 +2704,17 @@ void handleSave() {
   server.send(303);
 }
 
+void handleTestAlert() {
+  prchLastAlertId = "test-" + String(millis());
+  triggerRedAlert();
+  server.sendHeader("Location", "/");
+  server.send(303);
+}
+
 void setupWebServer() {
   server.on("/", HTTP_GET, handleRoot);
   server.on("/save", HTTP_POST, handleSave);
+  server.on("/testalert", HTTP_POST, handleTestAlert);
   server.begin();
 }
 
@@ -2634,6 +2797,8 @@ void setup() {
 
   pinMode(BACKLIGHT_PIN, OUTPUT);
   analogWrite(BACKLIGHT_PIN, BL_FULL);
+  pinMode(BUZZER_PIN, OUTPUT);
+  digitalWrite(BUZZER_PIN, LOW);
   pinMode(27, OUTPUT);
   digitalWrite(27, HIGH);
 
@@ -2691,7 +2856,22 @@ void loop() {
   updateWiFiConnectionState();
   updateFocusTimerState();
   updateTimerDoneDialogState();
+  updateRedAlertState();
+  pollOrefAlert();
   handleAutoSleep();
+
+  // Red alert takes over the whole screen until it expires or is tapped.
+  if (prchAlertActive) {
+    int ax = 0, ay = 0;
+    if (touchNewPress(ax, ay)) {
+      lastInteractionMs = millis();
+      dismissRedAlert();
+    } else {
+      drawRedAlertOverlay(false);
+    }
+    delay(10);
+    return;
+  }
 
   int tx = 0, ty = 0;
   if (touchNewPress(tx, ty)) {

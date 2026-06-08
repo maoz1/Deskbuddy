@@ -6,3 +6,12 @@ upload.log
 # Editor / tooling
 .claude/
 .vscode/
+
+# Local scratch / fetched data
+oref_areas.json
+oref_sample.txt
+dev_page.html
+*.tmp
+match.txt
+cmp.txt
+field_*.txt
