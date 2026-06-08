@@ -50,9 +50,19 @@ python -m platformio device list
 # Flash to the board (replace COM7 with your port)
 python -m platformio run --target upload --upload-port COM7
 
+# Upload the web UI assets (data/ -> LittleFS). Needed once, and again
+# whenever you change anything under data/ (index.html, style.css, app.js).
+python -m platformio run --target uploadfs --upload-port COM7
+
 # Watch serial output (115200 baud) — prints the web UI IP after WiFi connects
 python -m platformio device monitor --port COM7 --baud 115200
 ```
+
+> The web interface is served from the LittleFS filesystem: the page
+> (`data/index.html` + `style.css` + `app.js`) is static, and the firmware
+> exposes settings as a JSON API (`GET /api/config`, `POST /api/save`, plus
+> `/api/huefind|huepair|huetest|testalert`). After editing files in `data/`,
+> re-run `uploadfs` — a plain firmware `upload` does not refresh them.
 
 After a successful boot the serial monitor prints something like:
 

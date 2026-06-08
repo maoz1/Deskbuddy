@@ -10,10 +10,11 @@ src/secrets.h
 .claude/
 .vscode/
 
-# Local scratch / fetched data
+# Local scratch / fetched data (NOT the data/ web assets)
 oref_areas.json
 oref_sample.txt
-*.html
+/dev_page*.html
+/dp*.html
 *.tmp
 boot.txt
 hue_disc.json

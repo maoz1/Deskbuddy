@@ -16,6 +16,7 @@
 #include <ArduinoJson.h>
 #include <WebServer.h>
 #include <Preferences.h>
+#include <LittleFS.h>
 #include <SPI.h>
 #include <XPT2046_Touchscreen.h>
 #include <math.h>

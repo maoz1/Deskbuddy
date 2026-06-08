@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Deskbuddy</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="topbar">
+    <span class="brand">Deskbuddy</span>
+    <span class="ip" id="ip">…</span>
+    <span class="spacer"></span>
+    <button class="save-btn" id="saveBtn" type="button">Save</button>
+  </div>
+
+  <div class="tabs" id="tabs">
+    <button type="button" class="tab active" data-tab="notes">Notes</button>
+    <button type="button" class="tab" data-tab="appearance">Appearance</button>
+    <button type="button" class="tab" data-tab="general">General</button>
+    <button type="button" class="tab" data-tab="alerts">Alerts</button>
+    <button type="button" class="tab" data-tab="hue">Hue</button>
+  </div>
+
+  <div class="wrap">
+    <!-- NOTES -->
+    <div class="pane active" data-pane="notes">
+      <div class="card">
+        <h2>Notes</h2>
+        <div class="desc">Short notes synced to the device screen.</div>
+        <textarea id="notes" maxlength="700"></textarea>
+      </div>
+    </div>
+
+    <!-- APPEARANCE -->
+    <div class="pane" data-pane="appearance">
+      <div class="card">
+        <h2>Colors</h2>
+        <div class="desc">Accent, text, and background theme for the display.</div>
+        <div class="colorgroup">
+          <div class="colorhead"><label class="lbl">Accent</label><span class="val" id="accent-value"></span></div>
+          <div class="swatch-row" id="accent-swatches"></div>
+        </div>
+        <div class="colorgroup">
+          <div class="colorhead"><label class="lbl">Text</label><span class="val" id="text-value"></span></div>
+          <div class="swatch-row" id="text-swatches"></div>
+        </div>
+        <div class="colorgroup">
+          <div class="colorhead"><label class="lbl">Theme</label><span class="val" id="bg-value"></span></div>
+          <div class="swatch-row" id="bg-swatches"></div>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Home widgets</h2>
+        <div class="desc">Which widgets appear in the four Home slots below the clock.</div>
+        <div class="row" id="widgets"></div>
+      </div>
+    </div>
+
+    <!-- GENERAL -->
+    <div class="pane" data-pane="general">
+      <div class="card">
+        <h2>Device</h2>
+        <div class="desc">Nickname and power saving.</div>
+        <div class="row">
+          <div class="field"><label class="lbl">Buddy nickname</label><input id="nickname" maxlength="24"></div>
+          <div class="field"><label class="lbl">Auto sleep</label>
+            <select id="sleepMin">
+              <option value="0">Never</option><option value="1">1 minute</option>
+              <option value="5">5 minutes</option><option value="10">10 minutes</option>
+              <option value="30">30 minutes</option><option value="60">1 hour</option>
+            </select>
+          </div>
+        </div>
+        <div class="note">Sleep dims the screen first, then turns it fully off after 60 seconds.</div>
+      </div>
+      <div class="card">
+        <h2>Units &amp; format</h2>
+        <div class="desc">Measurement, date format, and time zone.</div>
+        <div class="row3">
+          <div class="field"><label class="lbl">Measurement</label>
+            <select id="units"><option value="metric">Celsius / mm</option><option value="imperial">Fahrenheit / in</option></select>
+          </div>
+          <div class="field"><label class="lbl">Date format</label>
+            <select id="region"><option value="europe">dd.mm.yyyy</option><option value="us">mm/dd/yyyy</option></select>
+          </div>
+          <div class="field"><label class="lbl">Time zone</label><select id="tz"></select></div>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Location</h2>
+        <div class="desc">Used for weather data and sun times.</div>
+        <div class="row3">
+          <div class="field"><label class="lbl">Name</label><input id="locname"></div>
+          <div class="field"><label class="lbl">Latitude</label><input id="lat"></div>
+          <div class="field"><label class="lbl">Longitude</label><input id="lng"></div>
+        </div>
+        <div class="note">Example Berlin: latitude 52.5200, longitude 13.4050.</div>
+      </div>
+      <div class="card">
+        <h2>Timer</h2>
+        <div class="desc">The six quick timers shown in the device popup menu.</div>
+        <div class="timergrid" id="timers"></div>
+        <label class="check" style="margin-top:14px;"><input type="checkbox" id="flashMode">Flash screen when timer ends</label>
+      </div>
+    </div>
+
+    <!-- ALERTS -->
+    <div class="pane" data-pane="alerts">
+      <div class="card">
+        <h2>Red Alert (Home Front Command)</h2>
+        <div class="desc">Polls the unofficial Pikud HaOref feed and shows a full-screen alarm when your area is targeted. <b>Unofficial — not a substitute for the official Home Front Command app or sirens.</b></div>
+        <label class="check"><input type="checkbox" id="prchEn">Enable red alert monitoring</label>
+        <div class="row">
+          <div class="field"><label class="lbl">Area match (Hebrew)</label><input id="prchArea" placeholder="example: תל אביב"></div>
+          <div class="field"><label class="lbl">Display label (English)</label><input id="prchLabel" maxlength="40" placeholder="example: Tel Aviv"></div>
+        </div>
+        <div class="note">Leave the area blank to alert on <b>any</b> alert in Israel. Matching is a substring of the official Hebrew area name.</div>
+        <div class="btnrow"><button class="btn red" id="testAlertBtn" type="button">Test red alert on device</button></div>
+        <div class="note">Triggers the full-screen alarm and buzzer now. Save your settings first (top bar).</div>
+      </div>
+    </div>
+
+    <!-- HUE -->
+    <div class="pane" data-pane="hue">
+      <div class="card">
+        <h2>Philips Hue lights</h2>
+        <div class="desc">Flash all Hue lights red during a red alert, then restore them. The bridge must be on the same network as Deskbuddy.</div>
+        <div class="status" id="hueStatus" style="display:none;"></div>
+        <label class="check"><input type="checkbox" id="hueEn">Flash Hue lights on alert</label>
+        <div class="field"><label class="lbl">Bridge IP</label><input id="hueBridge" placeholder="192.168.1.10"></div>
+        <div class="field"><label class="lbl">Pairing status</label> <span class="pill" id="huePill"></span></div>
+        <div class="btnrow">
+          <button class="btn green" id="hueFindBtn" type="button">1. Find bridge</button>
+          <button class="btn blue" id="huePairBtn" type="button">2. Pair</button>
+          <button class="btn purple" id="hueTestBtn" type="button">3. Test lights</button>
+        </div>
+        <div class="note"><b>Find</b> auto-fills the bridge IP. Then press the round button on the Hue bridge and tap <b>Pair</b> within 30 seconds. <b>Test</b> flashes the lights red to confirm.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+  <script src="/app.js"></script>
+</body>
+</html>

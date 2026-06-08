@@ -40,6 +40,8 @@ void drawRedAlertOverlay(bool force) {
   if (flashOn) tone(BUZZER_PIN, 2200); else noTone(BUZZER_PIN);
   setBacklight(flashOn ? BL_FULL : BL_DIM);
 
+
+  
   String key = String(flashOn ? 1 : 0);
   if (!force && key == cachePrchAlert) return;
   cachePrchAlert = key;
