@@ -3,6 +3,9 @@
 build.log
 upload.log
 
+# Private WiFi credentials (use secrets.h.example as a template)
+src/secrets.h
+
 # Editor / tooling
 .claude/
 .vscode/
@@ -10,8 +13,11 @@ upload.log
 # Local scratch / fetched data
 oref_areas.json
 oref_sample.txt
-dev_page.html
+*.html
 *.tmp
+boot.txt
+hue_disc.json
+huecheck.txt
 match.txt
 cmp.txt
 field_*.txt

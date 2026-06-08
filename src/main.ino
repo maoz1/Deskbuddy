@@ -19,15 +19,14 @@
 #include <SPI.h>
 #include <XPT2046_Touchscreen.h>
 #include <math.h>
+#include "secrets.h"   // WIFI_SSID / WIFI_PASS  (private, gitignored - see secrets.h.example)
 
 // Forward declarations (needed because this is a .cpp, not an .ino)
 void setWifiEnabled(bool enabled);
 
 // =========================================================
-// WIFI
+// WIFI  -  credentials live in src/secrets.h (WIFI_SSID / WIFI_PASS)
 // =========================================================
-const char* WIFI_SSID = "YOUR_WIFI_SSID";       // Replace with your WiFi network name
-const char* WIFI_PASS = "YOUR_WIFI_PASSWORD";   // Replace with your WiFi password
 
 // =========================================================
 // DISPLAY / TOUCH
@@ -443,6 +442,21 @@ String prchLastAlertId = "";       // de-dupe consecutive polls of the same aler
 unsigned long prchAlertStartedMs = 0;
 unsigned long prchLastPollMs = 0;
 String cachePrchAlert = "";        // flash-state cache for the overlay
+
+// =========================================================
+// PHILIPS HUE (local v1 API over HTTP) - flash all lights red on alert
+// =========================================================
+bool hueEnabled = false;
+String hueBridge = "";             // bridge IP, e.g. 192.168.68.110
+String hueUser = "";              // API username/token from pairing
+String hueStatusMsg = "";         // transient pairing feedback for the web UI
+bool hueSaved = false;            // do we have a captured pre-alert state?
+bool hueSavedAllOn = false;
+bool hueSavedOn = false;
+int hueSavedBri = 254;
+String hueSavedColor = "";        // JSON fragment to restore color (xy/ct/hue+sat)
+unsigned long hueLastFlashMs = 0;
+const unsigned long HUE_REFLASH_MS = 12000UL;  // re-trigger the breathe effect
 bool flashModeEnabled = false;
 int timerPresetMin[6] = {1, 5, 10, 15, 25, 30};
 bool wifiEnabled = true;
@@ -1033,6 +1047,10 @@ void loadStoredSettings() {
   prchEnabled      = prefs.getBool("prchEn", false);
   prchAreaMatch    = prefs.getString("prchArea", "");
   prchAreaLabel    = prefs.getString("prchLabel", "");
+
+  hueEnabled       = prefs.getBool("hueEn", false);
+  hueBridge        = prefs.getString("hueBridge", "");
+  hueUser          = prefs.getString("hueUser", "");
 
   for (int i = 0; i < HOME_SLOT_COUNT; i++) {
     String key = String("homeSlot") + String(i);
@@ -1791,6 +1809,158 @@ void drawTimerDoneOverlay(bool force = false) {
 }
 
 // =========================================================
+// PHILIPS HUE
+// =========================================================
+bool hueRequest(const char* method, const String& path, const String& body, String& resp) {
+  if (hueBridge.length() == 0) return false;
+  if (WiFi.status() != WL_CONNECTED) return false;
+
+  WiFiClient client;
+  HTTPClient http;
+  http.setConnectTimeout(2500);
+  http.setTimeout(2500);
+  if (!http.begin(client, "http://" + hueBridge + path)) return false;
+
+  int code;
+  if (strcmp(method, "PUT") == 0)       code = http.PUT(body);
+  else if (strcmp(method, "POST") == 0) code = http.POST(body);
+  else                                  code = http.GET();
+
+  if (code > 0) resp = http.getString();
+  http.end();
+  return code > 0;
+}
+
+// Auto-discover the bridge IP via Hue's cloud discovery service.
+String hueFindBridge() {
+  if (WiFi.status() != WL_CONNECTED) return "WiFi not connected";
+
+  WiFiClientSecure client;
+  client.setInsecure();
+  HTTPClient http;
+  http.setConnectTimeout(6000);
+  http.setTimeout(6000);
+  if (!http.begin(client, "https://discovery.meethue.com/")) return "Could not start discovery";
+
+  int code = http.GET();
+  if (code != 200) { http.end(); return "Discovery service returned " + String(code); }
+  String body = http.getString();
+  http.end();
+
+  JsonDocument doc;
+  if (deserializeJson(doc, body)) return "Could not parse discovery response";
+  if (!doc.is<JsonArray>() || doc.size() == 0) return "No bridge found on this network";
+
+  String ip = doc[0]["internalipaddress"] | "";
+  if (ip.length() == 0) return "Bridge found but no IP returned";
+
+  hueBridge = ip;
+  prefs.putString("hueBridge", hueBridge);
+  return "Found bridge at " + ip + " - now press the bridge button and Pair";
+}
+
+// Press the bridge link button first, then call this.
+String huePair() {
+  if (hueBridge.length() == 0) return "Set the bridge IP first";
+  String resp;
+  if (!hueRequest("POST", "/api", "{\"devicetype\":\"deskbuddy#esp32\"}", resp))
+    return "Bridge unreachable at " + hueBridge;
+
+  JsonDocument doc;
+  if (deserializeJson(doc, resp)) return "Unexpected bridge response";
+
+  if (!doc[0]["success"]["username"].isNull()) {
+    hueUser = doc[0]["success"]["username"].as<String>();
+    prefs.putString("hueUser", hueUser);
+    return "Paired successfully";
+  }
+  if ((doc[0]["error"]["type"] | 0) == 101)
+    return "Press the round button on the Hue bridge, then tap Pair again";
+  return "Pairing failed";
+}
+
+void hueCaptureState() {
+  hueSaved = false;
+  if (!hueEnabled || hueUser.length() == 0) return;
+
+  String resp;
+  if (!hueRequest("GET", "/api/" + hueUser + "/groups/0", "", resp)) return;
+
+  JsonDocument doc;
+  if (deserializeJson(doc, resp)) return;
+
+  hueSavedAllOn = doc["state"]["all_on"] | false;
+  hueSavedOn    = doc["action"]["on"] | false;
+  hueSavedBri   = doc["action"]["bri"] | 254;
+
+  String mode = doc["action"]["colormode"] | "";
+  if (mode == "xy" && doc["action"]["xy"].is<JsonArray>()) {
+    JsonArray xy = doc["action"]["xy"];
+    hueSavedColor = "\"xy\":[" + String((float)xy[0], 4) + "," + String((float)xy[1], 4) + "]";
+  } else if (mode == "ct") {
+    hueSavedColor = "\"ct\":" + String((int)(doc["action"]["ct"] | 366));
+  } else if (!doc["action"]["hue"].isNull()) {
+    hueSavedColor = "\"hue\":" + String((int)(doc["action"]["hue"] | 0)) +
+                    ",\"sat\":" + String((int)(doc["action"]["sat"] | 0));
+  } else {
+    hueSavedColor = "";
+  }
+  hueSaved = true;
+}
+
+void hueAlertOn() {
+  if (!hueEnabled || hueUser.length() == 0) return;
+  hueCaptureState();
+  String resp;
+  hueRequest("PUT", "/api/" + hueUser + "/groups/0/action",
+             "{\"on\":true,\"bri\":254,\"hue\":0,\"sat\":254,\"alert\":\"lselect\"}", resp);
+  hueLastFlashMs = millis();
+}
+
+void hueReflash() {
+  if (!hueEnabled || hueUser.length() == 0) return;
+  if (millis() - hueLastFlashMs < HUE_REFLASH_MS) return;
+  hueLastFlashMs = millis();
+  String resp;
+  hueRequest("PUT", "/api/" + hueUser + "/groups/0/action",
+             "{\"on\":true,\"bri\":254,\"hue\":0,\"sat\":254,\"alert\":\"lselect\"}", resp);
+}
+
+String hueTest() {
+  if (hueBridge.length() == 0) return "Set the bridge IP and tap Save first";
+  if (hueUser.length() == 0)   return "Not paired yet - press the bridge button and tap Pair";
+
+  String resp;
+  if (!hueRequest("GET", "/api/" + hueUser + "/groups/0", "", resp))
+    return "Bridge unreachable at " + hueBridge;
+  if (resp.indexOf("unauthorized") >= 0)
+    return "Bridge rejected the saved token - pair again";
+
+  bool wasEnabled = hueEnabled;
+  hueEnabled = true;          // allow the test even before the checkbox is saved
+  hueAlertOn();
+  delay(3500);
+  hueAlertOff();
+  hueEnabled = wasEnabled;
+  return "Test OK - lights flashed red and restored";
+}
+
+void hueAlertOff() {
+  if (!hueEnabled || hueUser.length() == 0) return;
+  String body;
+  if (hueSaved && !hueSavedAllOn && !hueSavedOn) {
+    body = "{\"on\":false,\"alert\":\"none\"}";
+  } else {
+    body = "{\"on\":true,\"bri\":" + String(hueSavedBri) +
+           (hueSavedColor.length() ? ("," + hueSavedColor) : "") +
+           ",\"alert\":\"none\"}";
+  }
+  String resp;
+  hueRequest("PUT", "/api/" + hueUser + "/groups/0/action", body, resp);
+  hueSaved = false;
+}
+
+// =========================================================
 // HOME FRONT COMMAND RED ALERT
 // =========================================================
 void prchSilence() {
@@ -1803,12 +1973,14 @@ void triggerRedAlert() {
   prchAlertStartedMs = millis();
   cachePrchAlert = "";
   wakeDisplay();
+  hueAlertOn();
 }
 
 void dismissRedAlert() {
   if (!prchAlertActive) return;
   prchAlertActive = false;
   prchSilence();
+  hueAlertOff();
   if (!sleepDimmed && !sleepOff) setBacklight(BL_FULL);
   pageDirty = true;
 }
@@ -2322,6 +2494,9 @@ void handleRoot() {
   bool prchEn = prefs.getBool("prchEn", false);
   String prchArea = prefs.getString("prchArea", "");
   String prchLabel = prefs.getString("prchLabel", "");
+  bool hueEn = prefs.getBool("hueEn", false);
+  String hueBridgeVal = prefs.getString("hueBridge", "");
+  bool huePaired = prefs.getString("hueUser", "").length() > 0;
   String homeSlotKeys[HOME_SLOT_COUNT];
   for (int i = 0; i < HOME_SLOT_COUNT; i++) {
     homeSlotKeys[i] = prefs.getString((String("homeSlot") + String(i)).c_str(), homeWidgetKey(homeWidgetSlots[i]));
@@ -2513,6 +2688,19 @@ void handleRoot() {
   page += "<div><label class='label'>Area match (Hebrew, as in Pikud HaOref)</label><input name='prchArea' value='" + htmlEscape(prchArea) + "' placeholder='example: תל אביב'></div>";
   page += "<div><label class='label'>Display label (English)</label><input name='prchLabel' maxlength='40' value='" + htmlEscape(prchLabel) + "' placeholder='example: Tel Aviv'></div>";
   page += "</div><div class='footer-note'>Leave the area blank to alert on <b>any</b> alert in Israel. Matching is a substring of the official Hebrew area name.</div></div>";
+  page += "<div class='settings-block'><span class='settings-title'>Philips Hue lights</span>";
+  page += "<div class='settings-desc'>Flash all Hue lights red during a red alert, then restore them. Uses the local bridge API.</div>";
+  if (hueStatusMsg.length()) {
+    bool ok = (hueStatusMsg.indexOf("OK") >= 0) || (hueStatusMsg.indexOf("success") >= 0) || (hueStatusMsg.indexOf("Found") >= 0);
+    String c = ok ? "#1c3b24" : "#3b1c1c";
+    String b = ok ? "#7CFC9A" : "#ff8888";
+    page += "<div style='background:" + c + ";border:1px solid " + b + ";color:" + b + ";padding:10px 12px;border-radius:8px;margin-bottom:12px;font-weight:600;'>" + htmlEscape(hueStatusMsg) + "</div>";
+  }
+  page += "<label style='display:flex;align-items:center;gap:10px;color:#edf2f7;margin-bottom:12px;'><input type='checkbox' name='hueEn' value='1'" + String(hueEn ? " checked" : "") + " style='width:auto;'>Flash Hue lights on alert</label>";
+  page += "<div class='grid'>";
+  page += "<div><label class='label'>Bridge IP</label><input name='hueBridge' value='" + htmlEscape(hueBridgeVal) + "' placeholder='192.168.1.10'><button type='submit' formmethod='POST' formaction='/huefind' style='margin-top:8px;background:#0f8a6a;'>Find bridge IP automatically</button></div>";
+  page += "<div><label class='label'>Pairing status</label><div style='color:" + String(huePaired ? "#7CFC9A" : "#ff8888") + ";padding-top:10px;'>" + String(huePaired ? "Paired ✓" : "Not paired") + "</div></div>";
+  page += "</div><div class='footer-note'>To pair: set the bridge IP and Save, press the round button on the Hue bridge, then tap Pair below (within 30s).</div></div>";
   page += "</div></div>";
 
   page += "<div class='panel' data-panel='widgets'>";
@@ -2539,6 +2727,14 @@ void handleRoot() {
   page += "<form method='POST' action='/testalert' class='stack' style='margin-top:12px;'>";
   page += "<button type='submit' style='background:#c0392b;'>Test red alert on device</button>";
   page += "<div class='footer-note'>Triggers the full-screen alarm now so you can verify the screen and buzzer. Save your settings first.</div>";
+  page += "</form>";
+  page += "<form method='POST' action='/huepair' class='stack' style='margin-top:12px;'>";
+  page += "<button type='submit' style='background:#2d6cdf;'>Pair with Hue bridge</button>";
+  page += "<div class='footer-note'>Press the round button on the Hue bridge first, then tap this within 30 seconds. Result shows in the Hue panel above.</div>";
+  page += "</form>";
+  page += "<form method='POST' action='/huetest' class='stack' style='margin-top:12px;'>";
+  page += "<button type='submit' style='background:#8e44ad;'>Test Hue lights (flash red 3s)</button>";
+  page += "<div class='footer-note'>Flashes all lights red then restores them, to confirm the bridge connection works.</div>";
   page += "</form>";
   page += "<script>";
   page += "var colorNames={accent:{standard:'Standard',ice:'Ice',white:'White',cyan:'Cyan',mint:'Mint',green:'Green',blue:'Blue',purple:'Purple',pink:'Pink',orange:'Orange',amber:'Amber',red:'Red'},text:{standard:'Standard',ice:'Ice',white:'White',cyan:'Cyan',mint:'Mint',green:'Green',blue:'Blue',purple:'Purple',pink:'Pink',orange:'Orange',amber:'Amber',red:'Red'},bg:{slate:'Slate',deep:'Deep black',nordic:'Nordic blue',forest:'Forest',coffee:'Coffee',soft:'Soft dark',midnight:'Midnight',graphite:'Graphite',garnet:'Garnet',ochre:'Ochre'}};";
@@ -2619,6 +2815,10 @@ void handleSave() {
   prchAreaLabel.trim();
   if (prchAreaLabel.length() > 40) prchAreaLabel = prchAreaLabel.substring(0, 40);
 
+  hueEnabled = server.hasArg("hueEn");
+  hueBridge  = server.hasArg("hueBridge") ? server.arg("hueBridge") : hueBridge;
+  hueBridge.trim();
+
   bool locationChanged =
     (fabsf(newLat - LAT) > 0.0001f) ||
     (fabsf(newLng - LNG) > 0.0001f) ||
@@ -2660,6 +2860,8 @@ void handleSave() {
   prefs.putBool("prchEn", prchEnabled);
   prefs.putString("prchArea", prchAreaMatch);
   prefs.putString("prchLabel", prchAreaLabel);
+  prefs.putBool("hueEn", hueEnabled);
+  prefs.putString("hueBridge", hueBridge);
   for (int i = 0; i < HOME_SLOT_COUNT; i++) {
     String key = String("homeSlot") + String(i);
     prefs.putString(key.c_str(), homeWidgetKey(homeWidgetSlots[i]));
@@ -2711,10 +2913,31 @@ void handleTestAlert() {
   server.send(303);
 }
 
+void handleHuePair() {
+  hueStatusMsg = huePair();
+  server.sendHeader("Location", "/");
+  server.send(303);
+}
+
+void handleHueTest() {
+  hueStatusMsg = hueTest();
+  server.sendHeader("Location", "/");
+  server.send(303);
+}
+
+void handleHueFind() {
+  hueStatusMsg = hueFindBridge();
+  server.sendHeader("Location", "/");
+  server.send(303);
+}
+
 void setupWebServer() {
   server.on("/", HTTP_GET, handleRoot);
   server.on("/save", HTTP_POST, handleSave);
   server.on("/testalert", HTTP_POST, handleTestAlert);
+  server.on("/huepair", HTTP_POST, handleHuePair);
+  server.on("/huetest", HTTP_POST, handleHueTest);
+  server.on("/huefind", HTTP_POST, handleHueFind);
   server.begin();
 }
 
@@ -2868,6 +3091,7 @@ void loop() {
       dismissRedAlert();
     } else {
       drawRedAlertOverlay(false);
+      hueReflash();
     }
     delay(10);
     return;
