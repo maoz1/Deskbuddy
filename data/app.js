@@ -119,6 +119,57 @@ function applyHueStatus(msg, paired) {
   var pill = $('huePill');
   pill.className = 'pill ' + (paired ? 'ok' : 'bad');
   pill.textContent = paired ? 'Paired' : 'Not paired';
+  $('hueLive').style.display = paired ? '' : 'none';
+}
+
+// ----- Live Hue control -----
+var HUE_PRESETS = [
+  { css: '#ffd9a0', cmd: { ct: 454 } },          // warm white
+  { css: '#cfe6ff', cmd: { ct: 250 } },          // cool white
+  { css: '#ff3030', cmd: { hue: 0, sat: 254 } },
+  { css: '#ff9000', cmd: { hue: 5000, sat: 254 } },
+  { css: '#ffe000', cmd: { hue: 11000, sat: 254 } },
+  { css: '#30d030', cmd: { hue: 25500, sat: 254 } },
+  { css: '#30e0e0', cmd: { hue: 39000, sat: 254 } },
+  { css: '#3060ff', cmd: { hue: 46920, sat: 254 } },
+  { css: '#a040ff', cmd: { hue: 50000, sat: 254 } },
+  { css: '#ff40c0', cmd: { hue: 56100, sat: 254 } }
+];
+
+function hueCtl(cmd) {
+  fetch('/api/huecontrol', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cmd) });
+}
+
+function hexToHueSat(hex) {
+  var r = parseInt(hex.substr(1, 2), 16) / 255,
+      g = parseInt(hex.substr(3, 2), 16) / 255,
+      b = parseInt(hex.substr(5, 2), 16) / 255;
+  var max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min, h = 0;
+  if (d) {
+    if (max === r) h = ((g - b) / d) % 6;
+    else if (max === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    h *= 60; if (h < 0) h += 360;
+  }
+  var s = max === 0 ? 0 : d / max;
+  return { hue: Math.round(h / 360 * 65535), sat: Math.round(s * 254) };
+}
+
+function buildHueControls() {
+  var box = $('huePresets');
+  box.innerHTML = '';
+  HUE_PRESETS.forEach(function (p) {
+    var el = document.createElement('div');
+    el.className = 'swatch'; el.style.background = p.css;
+    el.addEventListener('click', function () { hueCtl(p.cmd); toast('Sent'); });
+    box.appendChild(el);
+  });
+  $('hueOnBtn').addEventListener('click', function () { hueCtl({ on: true }); });
+  $('hueOffBtn').addEventListener('click', function () { hueCtl({ on: false }); });
+  $('hueBri').addEventListener('change', function () { hueCtl({ on: true, bri: +this.value }); });
+  $('hueColor').addEventListener('change', function () {
+    var c = hexToHueSat(this.value); hueCtl({ on: true, hue: c.hue, sat: c.sat });
+  });
 }
 
 function collect() {
@@ -165,6 +216,8 @@ $('testAlertBtn').addEventListener('click', function () {
 $('hueFindBtn').addEventListener('click', function () { hueAction('/api/huefind', 'hueFindBtn'); });
 $('huePairBtn').addEventListener('click', function () { hueAction('/api/huepair', 'huePairBtn'); });
 $('hueTestBtn').addEventListener('click', function () { hueAction('/api/huetest', 'hueTestBtn'); });
+
+buildHueControls();
 
 // restore last tab
 try { var st = localStorage.getItem(TAB_KEY); if (st) showTab(st); } catch (e) {}

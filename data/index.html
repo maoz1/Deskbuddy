@@ -136,6 +136,26 @@
           <button class="btn purple" id="hueTestBtn" type="button">3. Test lights</button>
         </div>
         <div class="note"><b>Find</b> auto-fills the bridge IP. Then press the round button on the Hue bridge and tap <b>Pair</b> within 30 seconds. <b>Test</b> flashes the lights red to confirm.</div>
+
+        <div id="hueLive" style="display:none;margin-top:18px;border-top:1px solid var(--line);padding-top:16px;">
+          <h2 style="font-size:15px;margin:0 0 12px;">Live control — all lights</h2>
+          <div class="btnrow">
+            <button class="btn" id="hueOnBtn" type="button">On</button>
+            <button class="btn sec" id="hueOffBtn" type="button">Off</button>
+          </div>
+          <div class="field" style="margin-top:14px;">
+            <label class="lbl">Brightness</label>
+            <input type="range" id="hueBri" min="1" max="254" value="200">
+          </div>
+          <div class="field">
+            <label class="lbl">Color presets</label>
+            <div class="swatch-row" id="huePresets"></div>
+          </div>
+          <div class="field">
+            <label class="lbl">Custom color</label>
+            <input type="color" id="hueColor" value="#ffaa55" style="height:46px;padding:4px;">
+          </div>
+        </div>
       </div>
     </div>
   </div>

@@ -193,6 +193,20 @@ void handleApiHueFind() { sendActionResult(hueFindBridge()); }
 void handleApiHuePair() { sendActionResult(huePair()); }
 void handleApiHueTest() { sendActionResult(hueTest()); }
 
+// Live light control from the web UI: {on?, bri?, ct?, hue?, sat?}
+void handleApiHueControl() {
+  JsonDocument d;
+  if (deserializeJson(d, server.arg("plain"))) {
+    server.send(400, "application/json", "{\"ok\":false}");
+    return;
+  }
+  if (!d["on"].isNull())  hueSetGroupOn(d["on"].as<bool>());
+  if (!d["bri"].isNull()) hueSetGroupBri(d["bri"].as<int>());
+  if (!d["ct"].isNull())  hueSetGroupCt(d["ct"].as<int>());
+  if (!d["hue"].isNull()) hueSetGroupHueSat(d["hue"].as<int>(), d["sat"] | 254);
+  server.send(200, "application/json", "{\"ok\":true}");
+}
+
 void setupWebServer() {
   LittleFS.begin(true);
 
@@ -202,6 +216,7 @@ void setupWebServer() {
   server.on("/api/huefind", HTTP_POST, handleApiHueFind);
   server.on("/api/huepair", HTTP_POST, handleApiHuePair);
   server.on("/api/huetest", HTTP_POST, handleApiHueTest);
+  server.on("/api/huecontrol", HTTP_POST, handleApiHueControl);
 
   server.serveStatic("/style.css", LittleFS, "/style.css");
   server.serveStatic("/app.js", LittleFS, "/app.js");
