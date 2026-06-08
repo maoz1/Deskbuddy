@@ -230,10 +230,17 @@ void handleApiHueControl() {
     server.send(400, "application/json", "{\"ok\":false}");
     return;
   }
-  if (!d["on"].isNull())  hueSetGroupOn(d["on"].as<bool>());
-  if (!d["bri"].isNull()) hueSetGroupBri(d["bri"].as<int>());
-  if (!d["ct"].isNull())  hueSetGroupCt(d["ct"].as<int>());
-  if (!d["hue"].isNull()) hueSetGroupHueSat(d["hue"].as<int>(), d["sat"] | 254);
+  // Build one merged group action so a single PUT carries on+bri+colour.
+  String body = "{";
+  bool first = true;
+  if (!d["on"].isNull())  { body += "\"on\":" + String(d["on"].as<bool>() ? "true" : "false"); first = false; }
+  else                    { body += "\"on\":true"; first = false; }
+  if (!d["bri"].isNull()) { body += ",\"bri\":" + String(d["bri"].as<int>()); }
+  if (!d["ct"].isNull())  { body += ",\"ct\":"  + String(d["ct"].as<int>()); }
+  if (!d["hue"].isNull()) { body += ",\"hue\":" + String(d["hue"].as<int>()) + ",\"sat\":" + String(d["sat"] | 254); }
+  body += "}";
+
+  hueRawGroupAction(body);
   server.send(200, "application/json", "{\"ok\":true}");
 }
 

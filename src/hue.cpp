@@ -211,3 +211,10 @@ void hueSetGroupHueSat(int hue, int sat) {
   hueRequest("PUT", "/api/" + hueUser + "/groups/0/action",
              "{\"on\":true,\"hue\":" + String(hue) + ",\"sat\":" + String(sat) + "}", resp);
 }
+
+String hueRawGroupAction(const String& body) {
+  if (!hueReady()) return "{\"err\":\"not paired\"}";
+  String resp;
+  if (!hueRequest("PUT", "/api/" + hueUser + "/groups/0/action", body, resp)) return "{\"err\":\"unreachable\"}";
+  return resp;
+}

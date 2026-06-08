@@ -26,3 +26,4 @@ void   hueSetGroupOn(bool on);
 void   hueSetGroupBri(int bri);          // 1..254
 void   hueSetGroupCt(int ct);            // colour temperature (153 cool .. 500 warm)
 void   hueSetGroupHueSat(int hue, int sat);
+String hueRawGroupAction(const String& body); // PUT body to groups/0/action, return bridge reply
