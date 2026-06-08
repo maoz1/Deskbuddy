@@ -2,9 +2,6 @@
 // WEB SERVER / UI (moved from main.ino - shares the single Arduino TU)
 // =========================================================
 
-// =========================================================
-// WEB SERVER
-// =========================================================
 void handleRoot() {
   String accent = prefs.getString("accent", "cyan");
   String bg     = prefs.getString("bg", "slate");
@@ -25,272 +22,209 @@ void handleRoot() {
     homeSlotKeys[i] = prefs.getString((String("homeSlot") + String(i)).c_str(), homeWidgetKey(homeWidgetSlots[i]));
   }
 
+  const char* swKeys[] = {"standard","ice","white","cyan","mint","green","blue","purple","pink","orange","amber","red"};
+  const int swCount = 12;
+  const char* bgKeys[] = {"slate","deep","nordic","forest","coffee","soft","midnight","graphite","garnet","ochre"};
+  const int bgCount = 10;
+
   String page;
-  page.reserve(21000);
+  page.reserve(23000);
 
   page += "<!doctype html><html><head>";
   page += "<meta charset='utf-8'>";
   page += "<meta name='viewport' content='width=device-width,initial-scale=1'>";
   page += "<title>Deskbuddy</title>";
   page += "<style>";
-  page += ":root{color-scheme:dark;}";
-  page += "body{margin:0;background:linear-gradient(180deg,#0b1018 0%,#111827 100%);color:#edf2f7;font-family:system-ui,sans-serif;}";
-  page += ".wrap{max-width:980px;margin:0 auto;padding:28px 16px 36px;}";
-  page += ".hero{margin-bottom:18px;padding:18px 20px;border:1px solid #243244;border-radius:20px;background:linear-gradient(135deg,#111927 0%,#172235 100%);box-shadow:0 10px 30px rgba(0,0,0,.22);}";
-  page += ".hero h1{font-size:30px;margin:0 0 8px 0;}";
-  page += ".hero p{margin:0;color:#a9b7c9;font-size:14px;}";
-  page += ".ip{display:inline-block;margin-top:14px;padding:8px 12px;border-radius:999px;background:#0b1220;border:1px solid #334155;color:#dbe7f5;font-size:13px;}";
-  page += ".layout{display:grid;grid-template-columns:1.15fr .85fr;gap:16px;align-items:start;}";
-  page += ".stack{display:grid;gap:16px;}";
-  page += ".panel{background:#171b22;border:1px solid #2d3748;border-radius:18px;padding:18px;margin:0;}";
-  page += ".panel-toggle{width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;background:none;border:none;color:#edf2f7;padding:0;margin:0;cursor:pointer;text-align:left;}";
-  page += ".panel-toggle:hover{color:#ffffff;}";
-  page += ".panel-toggle h2{flex:1;}";
-  page += ".panel-chevron{font-size:18px;color:#8ea3ba;transition:transform .18s ease;}";
-  page += ".panel.collapsed .panel-chevron{transform:rotate(-90deg);}";
-  page += ".panel-body{margin-top:12px;}";
-  page += ".panel.collapsed .panel-body{display:none;}";
-  page += ".panel h2{margin:0 0 6px 0;font-size:18px;}";
-  page += ".panel p{margin:0 0 14px 0;color:#94a3b8;font-size:13px;line-height:1.45;}";
-  page += ".grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}";
-  page += ".grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;}";
-  page += ".label{display:block;font-size:13px;margin:0 0 8px 0;color:#a0aec0;font-weight:600;}";
-  page += "textarea,input,select{width:100%;border-radius:12px;border:1px solid #334155;background:#0b1220;color:#edf2f7;padding:12px;box-sizing:border-box;font:inherit;}";
-  page += "textarea{min-height:170px;resize:vertical;}";
-  page += "button{margin-top:18px;background:#38bdf8;border:none;color:#001018;padding:13px 18px;border-radius:12px;font-weight:800;cursor:pointer;font:inherit;}";
-  page += ".muted{font-size:13px;color:#94a3b8;line-height:1.45;}";
-  page += ".footer-note{margin-top:10px;font-size:12px;color:#7f92a8;}";
-  page += ".settings-block{margin-top:18px;padding-top:16px;border-top:1px solid #2b3545;}";
-  page += ".settings-block:first-of-type{margin-top:0;padding-top:0;border-top:none;}";
-  page += ".settings-title{display:block;margin:0 0 6px 0;font-size:14px;font-weight:700;color:#edf2f7;letter-spacing:.02em;}";
-  page += ".settings-desc{margin:0 0 12px 0;font-size:12px;color:#8ea3ba;line-height:1.45;}";
-  page += ".color-stack{display:grid;gap:12px;}";
-  page += ".color-row{display:grid;grid-template-columns:120px 1fr;gap:12px;align-items:center;}";
-  page += ".color-meta{display:flex;align-items:center;justify-content:space-between;gap:10px;}";
-  page += ".color-meta .label{margin:0;color:#dbe7f5;}";
-  page += ".color-value{font-size:12px;color:#8ea3ba;white-space:nowrap;}";
+  page += ":root{--bg:#0b1018;--card:#161b24;--card2:#0e141d;--line:#283545;--text:#e7eef7;--dim:#93a4b8;--accent:#38bdf8;--accent2:#0ea5e9;color-scheme:dark;}";
+  page += "*{box-sizing:border-box;}";
+  page += "body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;font-size:15px;}";
+  page += ".topbar{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:12px;padding:12px 16px;background:rgba(11,16,24,.9);backdrop-filter:blur(10px);border-bottom:1px solid var(--line);}";
+  page += ".brand{font-weight:800;font-size:18px;letter-spacing:.02em;}";
+  page += ".ip{font-size:12px;color:var(--dim);padding:4px 10px;border:1px solid var(--line);border-radius:999px;white-space:nowrap;}";
+  page += ".spacer{flex:1;}";
+  page += ".save-btn{background:var(--accent);color:#001018;border:none;font-weight:800;padding:10px 20px;border-radius:10px;cursor:pointer;font:inherit;}";
+  page += ".save-btn:hover{background:var(--accent2);}";
+  page += ".tabs{position:sticky;top:57px;z-index:19;display:flex;gap:6px;overflow-x:auto;padding:10px 12px;background:var(--bg);border-bottom:1px solid var(--line);}";
+  page += ".tab{flex:0 0 auto;background:transparent;border:1px solid transparent;color:var(--dim);padding:9px 16px;border-radius:999px;cursor:pointer;font:inherit;font-weight:600;white-space:nowrap;}";
+  page += ".tab:hover{color:var(--text);}";
+  page += ".tab.active{background:var(--card);color:var(--text);border-color:var(--line);}";
+  page += ".wrap{max-width:760px;margin:0 auto;padding:18px 16px 70px;}";
+  page += ".pane{display:none;}.pane.active{display:block;}";
+  page += ".card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px;margin-bottom:16px;}";
+  page += ".card h2{margin:0 0 4px;font-size:17px;}";
+  page += ".card .desc{margin:0 0 16px;color:var(--dim);font-size:13px;line-height:1.5;}";
+  page += "label.lbl{display:block;font-size:13px;font-weight:600;color:var(--dim);margin:0 0 7px;}";
+  page += "input,select,textarea{width:100%;border-radius:10px;border:1px solid var(--line);background:var(--card2);color:var(--text);padding:11px 12px;font:inherit;}";
+  page += "textarea{min-height:150px;resize:vertical;}";
+  page += ".row{display:grid;grid-template-columns:1fr 1fr;gap:14px;}";
+  page += ".row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;}";
+  page += ".field{margin-bottom:14px;}";
+  page += ".note{font-size:12px;color:#7f93a8;margin-top:8px;line-height:1.5;}";
+  page += ".check{display:flex;align-items:center;gap:10px;margin:6px 0 14px;color:var(--text);}";
+  page += ".check input{width:auto;}";
+  page += ".btn{background:var(--accent);color:#001018;border:none;font-weight:700;padding:11px 16px;border-radius:10px;cursor:pointer;font:inherit;}";
+  page += ".btn.sec{background:#1f2937;color:var(--text);border:1px solid var(--line);}";
+  page += ".btn.red{background:#dc2626;color:#fff;}";
+  page += ".btn.green{background:#0f8a6a;color:#fff;}";
+  page += ".btn.blue{background:#2d6cdf;color:#fff;}";
+  page += ".btn.purple{background:#7c3aed;color:#fff;}";
+  page += ".btnrow{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px;}";
   page += ".swatch-row{display:flex;flex-wrap:wrap;gap:8px;}";
-  page += ".swatch{width:22px;height:22px;border-radius:999px;border:1px solid rgba(255,255,255,.18);cursor:pointer;position:relative;box-sizing:border-box;}";
+  page += ".swatch{width:26px;height:26px;border-radius:999px;border:1px solid rgba(255,255,255,.18);cursor:pointer;position:relative;}";
   page += ".swatch input{display:none;}";
-  page += ".swatch.active{box-shadow:0 0 0 2px #67e8f9, 0 0 0 5px rgba(103,232,249,.18);}";
-  page += ".swatch.active::after{content:'';position:absolute;inset:5px;border-radius:999px;border:1px solid rgba(0,16,24,.45);}";
-  page += ".timer-slot-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:14px;}";
-  page += ".timer-slot{border:1px solid #334155;border-radius:12px;background:#0b1220;padding:10px 10px 12px 10px;}";
-  page += ".timer-slot-head{font-size:12px;color:#8ea3ba;margin-bottom:8px;font-weight:600;}";
-  page += ".timer-slot-input{display:flex;align-items:center;gap:8px;}";
-  page += ".timer-slot input{padding:10px 12px;text-align:center;font-weight:700;}";
-  page += ".timer-unit{font-size:12px;color:#8ea3ba;white-space:nowrap;}";
-  page += "@media(max-width:820px){.layout{grid-template-columns:1fr;}.grid,.grid-3,.timer-slot-grid{grid-template-columns:1fr;}.color-row{grid-template-columns:1fr;}}";
-  page += "</style></head><body><div class='wrap'>";
-  page += "<div class='hero'>";
-  page += "<h1>Deskbuddy</h1>";
-  page += "<p>Shape Deskbuddy into your own desk companion with widgets, notes, colors, and smart daily tools.</p>";
-  page += "<div class='ip'>ESP IP: ";
-  page += WiFi.localIP().toString();
-  page += "</div></div>";
+  page += ".swatch.active{box-shadow:0 0 0 2px var(--accent),0 0 0 5px rgba(56,189,248,.2);}";
+  page += ".colorgroup{margin-bottom:18px;}";
+  page += ".colorhead{display:flex;justify-content:space-between;margin-bottom:8px;}";
+  page += ".colorhead .val{font-size:12px;color:var(--dim);}";
+  page += ".timergrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;}";
+  page += ".tslot{border:1px solid var(--line);border-radius:10px;background:var(--card2);padding:10px;}";
+  page += ".tslot .h{font-size:12px;color:var(--dim);margin-bottom:6px;}";
+  page += ".tslot input{text-align:center;font-weight:700;}";
+  page += ".status{padding:10px 12px;border-radius:10px;margin-bottom:14px;font-weight:600;font-size:13px;}";
+  page += ".status.ok{background:#10331f;border:1px solid #34d399;color:#6ee7b7;}";
+  page += ".status.bad{background:#3a1414;border:1px solid #f87171;color:#fca5a5;}";
+  page += ".pill{display:inline-block;padding:5px 12px;border-radius:999px;font-size:13px;font-weight:600;}";
+  page += ".pill.ok{background:#10331f;color:#6ee7b7;border:1px solid #34d399;}";
+  page += ".pill.bad{background:#3a1414;color:#fca5a5;border:1px solid #f87171;}";
+  page += "@media(max-width:620px){.row,.row3,.timergrid{grid-template-columns:1fr;}}";
+  page += "</style></head><body>";
 
-  page += "<form method='POST' action='/save'>";
-  page += "<div class='layout'><div class='stack'>";
+  // ---- Sticky top bar with always-visible Save ----
+  page += "<div class='topbar'><span class='brand'>Deskbuddy</span><span class='ip'>" + WiFi.localIP().toString() + "</span><span class='spacer'></span>";
+  page += "<button class='save-btn' type='submit' form='mainform'>Save</button></div>";
 
-  page += "<div class='panel' data-panel='notes'>";
-  page += "<button type='button' class='panel-toggle' aria-expanded='true'><h2>Notes</h2><span class='panel-chevron'>&#9662;</span></button>";
-  page += "<div class='panel-body'>";
-  page += "<p>Short notes synced to the device.</p>";
-  page += "<label class='label'>Notes</label>";
-  page += "<textarea name='notes' maxlength='700'>";
-  page += htmlEscape(notesText);
-  page += "</textarea>";
-  page += "<div class='muted'>Saved notes show up right away.</div>";
-  page += "</div></div>";
-
-  page += "<div class='panel' data-panel='theme'>";
-  page += "<button type='button' class='panel-toggle' aria-expanded='true'><h2>Theme and color</h2><span class='panel-chevron'>&#9662;</span></button>";
-  page += "<div class='panel-body'>";
-  page += "<p>Colors and visual style for the display.</p>";
-  page += "<div class='grid'>";
-
-  page += "<div style='grid-column:1 / -1;' class='color-stack'>";
-
-  page += "<div class='color-row'><div class='color-meta'><label class='label'>Accent</label><span class='color-value' id='accent-value'>";
-  page += accent;
-  page += "</span></div><div class='swatch-row'>";
-  page += "<label class='swatch" + String(accent=="standard"?" active":"") + "' style='background:" + accentPreviewCss("standard") + ";'><input type='radio' name='accent' value='standard'" + String(accent=="standard"?" checked":"") + "></label>";
-  page += "<label class='swatch" + String(accent=="ice"?" active":"") + "' style='background:" + accentPreviewCss("ice") + ";'><input type='radio' name='accent' value='ice'" + String(accent=="ice"?" checked":"") + "></label>";
-  page += "<label class='swatch" + String(accent=="white"?" active":"") + "' style='background:" + accentPreviewCss("white") + ";'><input type='radio' name='accent' value='white'" + String(accent=="white"?" checked":"") + "></label>";
-  page += "<label class='swatch" + String(accent=="cyan"?" active":"") + "' style='background:" + accentPreviewCss("cyan") + ";'><input type='radio' name='accent' value='cyan'" + String(accent=="cyan"?" checked":"") + "></label>";
-  page += "<label class='swatch" + String(accent=="mint"?" active":"") + "' style='background:" + accentPreviewCss("mint") + ";'><input type='radio' name='accent' value='mint'" + String(accent=="mint"?" checked":"") + "></label>";
-  page += "<label class='swatch" + String(accent=="green"?" active":"") + "' style='background:" + accentPreviewCss("green") + ";'><input type='radio' name='accent' value='green'" + String(accent=="green"?" checked":"") + "></label>";
-  page += "<label class='swatch" + String(accent=="blue"?" active":"") + "' style='background:" + accentPreviewCss("blue") + ";'><input type='radio' name='accent' value='blue'" + String(accent=="blue"?" checked":"") + "></label>";
-  page += "<label class='swatch" + String(accent=="purple"?" active":"") + "' style='background:" + accentPreviewCss("purple") + ";'><input type='radio' name='accent' value='purple'" + String(accent=="purple"?" checked":"") + "></label>";
-  page += "<label class='swatch" + String(accent=="pink"?" active":"") + "' style='background:" + accentPreviewCss("pink") + ";'><input type='radio' name='accent' value='pink'" + String(accent=="pink"?" checked":"") + "></label>";
-  page += "<label class='swatch" + String(accent=="orange"?" active":"") + "' style='background:" + accentPreviewCss("orange") + ";'><input type='radio' name='accent' value='orange'" + String(accent=="orange"?" checked":"") + "></label>";
-  page += "<label class='swatch" + String(accent=="amber"?" active":"") + "' style='background:" + accentPreviewCss("amber") + ";'><input type='radio' name='accent' value='amber'" + String(accent=="amber"?" checked":"") + "></label>";
-  page += "<label class='swatch" + String(accent=="red"?" active":"") + "' style='background:" + accentPreviewCss("red") + ";'><input type='radio' name='accent' value='red'" + String(accent=="red"?" checked":"") + "></label>";
-  page += "</div></div>";
-
-  page += "<div class='color-row'><div class='color-meta'><label class='label'>Text</label><span class='color-value' id='text-value'>";
-  page += txt;
-  page += "</span></div><div class='swatch-row'>";
-  page += "<label class='swatch" + String(txt=="standard"?" active":"") + "' style='background:" + accentPreviewCss("standard") + ";'><input type='radio' name='text' value='standard'" + String(txt=="standard"?" checked":"") + "></label>";
-  page += "<label class='swatch" + String(txt=="ice"?" active":"") + "' style='background:" + accentPreviewCss("ice") + ";'><input type='radio' name='text' value='ice'" + String(txt=="ice"?" checked":"") + "></label>";
-  page += "<label class='swatch" + String(txt=="white"?" active":"") + "' style='background:" + accentPreviewCss("white") + ";'><input type='radio' name='text' value='white'" + String(txt=="white"?" checked":"") + "></label>";
-  page += "<label class='swatch" + String(txt=="cyan"?" active":"") + "' style='background:" + accentPreviewCss("cyan") + ";'><input type='radio' name='text' value='cyan'" + String(txt=="cyan"?" checked":"") + "></label>";
-  page += "<label class='swatch" + String(txt=="mint"?" active":"") + "' style='background:" + accentPreviewCss("mint") + ";'><input type='radio' name='text' value='mint'" + String(txt=="mint"?" checked":"") + "></label>";
-  page += "<label class='swatch" + String(txt=="green"?" active":"") + "' style='background:" + accentPreviewCss("green") + ";'><input type='radio' name='text' value='green'" + String(txt=="green"?" checked":"") + "></label>";
-  page += "<label class='swatch" + String(txt=="blue"?" active":"") + "' style='background:" + accentPreviewCss("blue") + ";'><input type='radio' name='text' value='blue'" + String(txt=="blue"?" checked":"") + "></label>";
-  page += "<label class='swatch" + String(txt=="purple"?" active":"") + "' style='background:" + accentPreviewCss("purple") + ";'><input type='radio' name='text' value='purple'" + String(txt=="purple"?" checked":"") + "></label>";
-  page += "<label class='swatch" + String(txt=="pink"?" active":"") + "' style='background:" + accentPreviewCss("pink") + ";'><input type='radio' name='text' value='pink'" + String(txt=="pink"?" checked":"") + "></label>";
-  page += "<label class='swatch" + String(txt=="orange"?" active":"") + "' style='background:" + accentPreviewCss("orange") + ";'><input type='radio' name='text' value='orange'" + String(txt=="orange"?" checked":"") + "></label>";
-  page += "<label class='swatch" + String(txt=="amber"?" active":"") + "' style='background:" + accentPreviewCss("amber") + ";'><input type='radio' name='text' value='amber'" + String(txt=="amber"?" checked":"") + "></label>";
-  page += "<label class='swatch" + String(txt=="red"?" active":"") + "' style='background:" + accentPreviewCss("red") + ";'><input type='radio' name='text' value='red'" + String(txt=="red"?" checked":"") + "></label>";
-  page += "</div></div>";
-
-  page += "<div class='color-row'><div class='color-meta'><label class='label'>Theme</label><span class='color-value' id='bg-value'>";
-  page += bg;
-  page += "</span></div><div class='swatch-row'>";
-  page += "<label class='swatch" + String(bg=="slate"?" active":"") + "' style='background:" + themePreviewCss("slate") + ";'><input type='radio' name='bg' value='slate'" + String(bg=="slate"?" checked":"") + "></label>";
-  page += "<label class='swatch" + String(bg=="deep"?" active":"") + "' style='background:" + themePreviewCss("deep") + ";'><input type='radio' name='bg' value='deep'" + String(bg=="deep"?" checked":"") + "></label>";
-  page += "<label class='swatch" + String(bg=="nordic"?" active":"") + "' style='background:" + themePreviewCss("nordic") + ";'><input type='radio' name='bg' value='nordic'" + String(bg=="nordic"?" checked":"") + "></label>";
-  page += "<label class='swatch" + String(bg=="forest"?" active":"") + "' style='background:" + themePreviewCss("forest") + ";'><input type='radio' name='bg' value='forest'" + String(bg=="forest"?" checked":"") + "></label>";
-  page += "<label class='swatch" + String(bg=="coffee"?" active":"") + "' style='background:" + themePreviewCss("coffee") + ";'><input type='radio' name='bg' value='coffee'" + String(bg=="coffee"?" checked":"") + "></label>";
-  page += "<label class='swatch" + String(bg=="soft"?" active":"") + "' style='background:" + themePreviewCss("soft") + ";'><input type='radio' name='bg' value='soft'" + String(bg=="soft"?" checked":"") + "></label>";
-  page += "<label class='swatch" + String(bg=="midnight"?" active":"") + "' style='background:" + themePreviewCss("midnight") + ";'><input type='radio' name='bg' value='midnight'" + String(bg=="midnight"?" checked":"") + "></label>";
-  page += "<label class='swatch" + String(bg=="graphite"?" active":"") + "' style='background:" + themePreviewCss("graphite") + ";'><input type='radio' name='bg' value='graphite'" + String(bg=="graphite"?" checked":"") + "></label>";
-  page += "<label class='swatch" + String(bg=="garnet"?" active":"") + "' style='background:" + themePreviewCss("garnet") + ";'><input type='radio' name='bg' value='garnet'" + String(bg=="garnet"?" checked":"") + "></label>";
-  page += "<label class='swatch" + String(bg=="ochre"?" active":"") + "' style='background:" + themePreviewCss("ochre") + ";'><input type='radio' name='bg' value='ochre'" + String(bg=="ochre"?" checked":"") + "></label>";
-  page += "</div></div>";
-
+  // ---- Tab bar ----
+  page += "<div class='tabs'>";
+  page += "<button type='button' class='tab active' data-tab='notes'>Notes</button>";
+  page += "<button type='button' class='tab' data-tab='appearance'>Appearance</button>";
+  page += "<button type='button' class='tab' data-tab='general'>General</button>";
+  page += "<button type='button' class='tab' data-tab='alerts'>Alerts</button>";
+  page += "<button type='button' class='tab' data-tab='hue'>Hue</button>";
   page += "</div>";
 
+  page += "<form id='mainform' method='POST' action='/save'><div class='wrap'>";
+
+  // ===== NOTES =====
+  page += "<div class='pane active' data-pane='notes'><div class='card'>";
+  page += "<h2>Notes</h2><div class='desc'>Short notes synced to the device screen.</div>";
+  page += "<textarea name='notes' maxlength='700'>" + htmlEscape(notesText) + "</textarea>";
+  page += "<div class='note'>Saved notes show up on the device right away.</div>";
+  page += "</div></div>";
+
+  // ===== APPEARANCE =====
+  page += "<div class='pane' data-pane='appearance'>";
+  page += "<div class='card'><h2>Colors</h2><div class='desc'>Accent, text, and background theme for the display.</div>";
+  // accent
+  page += "<div class='colorgroup'><div class='colorhead'><label class='lbl'>Accent</label><span class='val' id='accent-value'>" + accent + "</span></div><div class='swatch-row'>";
+  for (int i = 0; i < swCount; i++)
+    page += "<label class='swatch" + String(accent==swKeys[i]?" active":"") + "' style='background:" + accentPreviewCss(swKeys[i]) + ";'><input type='radio' name='accent' value='" + swKeys[i] + "'" + String(accent==swKeys[i]?" checked":"") + "></label>";
+  page += "</div></div>";
+  // text
+  page += "<div class='colorgroup'><div class='colorhead'><label class='lbl'>Text</label><span class='val' id='text-value'>" + txt + "</span></div><div class='swatch-row'>";
+  for (int i = 0; i < swCount; i++)
+    page += "<label class='swatch" + String(txt==swKeys[i]?" active":"") + "' style='background:" + accentPreviewCss(swKeys[i]) + ";'><input type='radio' name='text' value='" + swKeys[i] + "'" + String(txt==swKeys[i]?" checked":"") + "></label>";
+  page += "</div></div>";
+  // bg
+  page += "<div class='colorgroup'><div class='colorhead'><label class='lbl'>Theme</label><span class='val' id='bg-value'>" + bg + "</span></div><div class='swatch-row'>";
+  for (int i = 0; i < bgCount; i++)
+    page += "<label class='swatch" + String(bg==bgKeys[i]?" active":"") + "' style='background:" + themePreviewCss(bgKeys[i]) + ";'><input type='radio' name='bg' value='" + bgKeys[i] + "'" + String(bg==bgKeys[i]?" checked":"") + "></label>";
+  page += "</div></div>";
+  page += "</div>";
+  // widgets
+  page += "<div class='card'><h2>Home widgets</h2><div class='desc'>Which widgets appear in the four Home slots below the clock.</div><div class='row'>";
+  for (int i = 0; i < HOME_SLOT_COUNT; i++) {
+    page += "<div class='field'><label class='lbl'>" + String(homeSlotLabel(i)) + "</label><select name='homeSlot" + String(i) + "'>";
+    appendHomeWidgetOptions(page, homeSlotKeys[i]);
+    page += "</select></div>";
+  }
   page += "</div></div></div>";
 
-  page += "<div class='panel' data-panel='settings'>";
-  page += "<button type='button' class='panel-toggle' aria-expanded='true'><h2>Settings</h2><span class='panel-chevron'>&#9662;</span></button>";
-  page += "<div class='panel-body'>";
-  page += "<p>Core behavior and timer setup.</p>";
-  page += "<div class='settings-block'>";
-  page += "<span class='settings-title'>General</span>";
-  page += "<div class='grid'>";
-  page += "<div><label class='label'>Buddy nickname</label><input name='nickname' maxlength='24' value='" + htmlEscape(nickname) + "'></div>";
-  page += "<div><label class='label'>Auto sleep interval</label><select name='sleepMin'>";
+  // ===== GENERAL =====
+  page += "<div class='pane' data-pane='general'>";
+  page += "<div class='card'><h2>Device</h2><div class='desc'>Nickname and power saving.</div><div class='row'>";
+  page += "<div class='field'><label class='lbl'>Buddy nickname</label><input name='nickname' maxlength='24' value='" + htmlEscape(nickname) + "'></div>";
+  page += "<div class='field'><label class='lbl'>Auto sleep</label><select name='sleepMin'>";
   page += "<option value='0'"  + String(sleepIntervalMin==0?" selected":"")  + ">Never</option>";
   page += "<option value='1'"  + String(sleepIntervalMin==1?" selected":"")  + ">1 minute</option>";
   page += "<option value='5'"  + String(sleepIntervalMin==5?" selected":"")  + ">5 minutes</option>";
   page += "<option value='10'" + String(sleepIntervalMin==10?" selected":"") + ">10 minutes</option>";
   page += "<option value='30'" + String(sleepIntervalMin==30?" selected":"") + ">30 minutes</option>";
   page += "<option value='60'" + String(sleepIntervalMin==60?" selected":"") + ">1 hour</option>";
-  page += "</select><div class='muted' style='margin-top:8px;'>Sleep dims the screen first, then turns it fully off after 60 seconds.</div></div>";
-  page += "<div><label class='label'>Measurement system</label><select name='units'>";
+  page += "</select></div>";
+  page += "</div><div class='note'>Sleep dims the screen first, then turns it fully off after 60 seconds.</div></div>";
+
+  page += "<div class='card'><h2>Units &amp; format</h2><div class='desc'>Measurement, date format, and time zone.</div><div class='row3'>";
+  page += "<div class='field'><label class='lbl'>Measurement</label><select name='units'>";
   page += "<option value='metric'"   + String(units=="metric"?" selected":"")   + ">Celsius / mm</option>";
-  page += "<option value='imperial'" + String(units=="imperial"?" selected":"") + ">Fahrenheit / inches</option>";
+  page += "<option value='imperial'" + String(units=="imperial"?" selected":"") + ">Fahrenheit / in</option>";
   page += "</select></div>";
-  page += "<div><label class='label'>Date format</label><select name='region'>";
-  page += "<option value='europe'" + String(region=="europe"?" selected":"") + ">European: dd.mm.yyyy</option>";
-  page += "<option value='us'" + String(region=="us"?" selected":"") + ">US: mm/dd/yyyy</option>";
+  page += "<div class='field'><label class='lbl'>Date format</label><select name='region'>";
+  page += "<option value='europe'" + String(region=="europe"?" selected":"") + ">dd.mm.yyyy</option>";
+  page += "<option value='us'" + String(region=="us"?" selected":"") + ">mm/dd/yyyy</option>";
   page += "</select></div>";
-  page += "<div><label class='label'>Time zone</label><select name='tz'>";
+  page += "<div class='field'><label class='lbl'>Time zone</label><select name='tz'>";
   appendTimezoneOptions(page, tz);
-  page += "</select></div>";
-  page += "</div>";
-  page += "</div>";
-  page += "<div class='settings-block'><span class='settings-title'>Timer</span><div class='settings-desc'>Choose the six quick timers shown in the popup menu.</div><div class='timer-slot-grid'>";
-  for (int i = 0; i < 6; i++) {
-    page += "<div class='timer-slot'><div class='timer-slot-head'>Slot " + String(i + 1) + "</div><div class='timer-slot-input'><input type='number' min='1' max='180' name='timer" + String(i) + "' value='" + String(timerPresetMin[i]) + "'><span class='timer-unit'>min</span></div></div>";
-  }
-  page += "</div>";
-  page += "<div style='margin-top:14px;'><span class='settings-title'>Alert behavior</span><label style='display:flex;align-items:center;gap:10px;color:#edf2f7;'><input type='checkbox' name='flashMode' value='1'" + String(flashMode ? " checked" : "") + " style='width:auto;'>Flash screen when timer ends</label></div></div>";
-  page += "<div class='settings-block'><span class='settings-title'>Location</span><div class='settings-desc'>Used for weather data and sun times.</div><div class='grid-3'>";
-  page += "<div><label class='label'>Location name</label><input name='locname' value='" + htmlEscape(locationName) + "'></div>";
-  page += "<div><label class='label'>Latitude</label><input name='lat' value='" + String(LAT, 6) + "'></div>";
-  page += "<div><label class='label'>Longitude</label><input name='lng' value='" + String(LNG, 6) + "'></div>";
-  page += "</div><div class='footer-note'>Example Berlin: latitude 52.5200, longitude 13.4050.</div></div>";
-  page += "<div class='settings-block'><span class='settings-title'>Red Alert (Home Front Command)</span>";
-  page += "<div class='settings-desc'>Polls the unofficial Pikud HaOref feed and shows a full-screen alarm when your area is targeted. <b>Unofficial &mdash; not a substitute for the official Home Front Command app or sirens.</b></div>";
-  page += "<label style='display:flex;align-items:center;gap:10px;color:#edf2f7;margin-bottom:12px;'><input type='checkbox' name='prchEn' value='1'" + String(prchEn ? " checked" : "") + " style='width:auto;'>Enable red alert monitoring</label>";
-  page += "<div class='grid'>";
-  page += "<div><label class='label'>Area match (Hebrew, as in Pikud HaOref)</label><input name='prchArea' value='" + htmlEscape(prchArea) + "' placeholder='example: תל אביב'></div>";
-  page += "<div><label class='label'>Display label (English)</label><input name='prchLabel' maxlength='40' value='" + htmlEscape(prchLabel) + "' placeholder='example: Tel Aviv'></div>";
-  page += "</div><div class='footer-note'>Leave the area blank to alert on <b>any</b> alert in Israel. Matching is a substring of the official Hebrew area name.</div></div>";
-  page += "<div class='settings-block'><span class='settings-title'>Philips Hue lights</span>";
-  page += "<div class='settings-desc'>Flash all Hue lights red during a red alert, then restore them. Uses the local bridge API.</div>";
+  page += "</select></div></div></div>";
+
+  page += "<div class='card'><h2>Location</h2><div class='desc'>Used for weather data and sun times.</div><div class='row3'>";
+  page += "<div class='field'><label class='lbl'>Name</label><input name='locname' value='" + htmlEscape(locationName) + "'></div>";
+  page += "<div class='field'><label class='lbl'>Latitude</label><input name='lat' value='" + String(LAT, 6) + "'></div>";
+  page += "<div class='field'><label class='lbl'>Longitude</label><input name='lng' value='" + String(LNG, 6) + "'></div>";
+  page += "</div><div class='note'>Example Berlin: latitude 52.5200, longitude 13.4050.</div></div>";
+
+  page += "<div class='card'><h2>Timer</h2><div class='desc'>The six quick timers shown in the device popup menu.</div><div class='timergrid'>";
+  for (int i = 0; i < 6; i++)
+    page += "<div class='tslot'><div class='h'>Slot " + String(i + 1) + "</div><input type='number' min='1' max='180' name='timer" + String(i) + "' value='" + String(timerPresetMin[i]) + "'></div>";
+  page += "</div><label class='check' style='margin-top:14px;'><input type='checkbox' name='flashMode' value='1'" + String(flashMode ? " checked" : "") + ">Flash screen when timer ends</label></div></div>";
+
+  // ===== ALERTS =====
+  page += "<div class='pane' data-pane='alerts'><div class='card'>";
+  page += "<h2>Red Alert (Home Front Command)</h2>";
+  page += "<div class='desc'>Polls the unofficial Pikud HaOref feed and shows a full-screen alarm when your area is targeted. <b>Unofficial &mdash; not a substitute for the official Home Front Command app or sirens.</b></div>";
+  page += "<label class='check'><input type='checkbox' name='prchEn' value='1'" + String(prchEn ? " checked" : "") + ">Enable red alert monitoring</label>";
+  page += "<div class='row'>";
+  page += "<div class='field'><label class='lbl'>Area match (Hebrew)</label><input name='prchArea' value='" + htmlEscape(prchArea) + "' placeholder='example: תל אביב'></div>";
+  page += "<div class='field'><label class='lbl'>Display label (English)</label><input name='prchLabel' maxlength='40' value='" + htmlEscape(prchLabel) + "' placeholder='example: Tel Aviv'></div>";
+  page += "</div><div class='note'>Leave the area blank to alert on <b>any</b> alert in Israel. Matching is a substring of the official Hebrew area name.</div>";
+  page += "<div class='btnrow'><button class='btn red' type='submit' formaction='/testalert'>Test red alert on device</button></div>";
+  page += "<div class='note'>Triggers the full-screen alarm and buzzer now, to verify the screen and sound. Save your settings first (top bar).</div>";
+  page += "</div></div>";
+
+  // ===== HUE =====
+  page += "<div class='pane' data-pane='hue'><div class='card'>";
+  page += "<h2>Philips Hue lights</h2>";
+  page += "<div class='desc'>Flash all Hue lights red during a red alert, then restore them. The bridge must be on the same network as Deskbuddy.</div>";
   if (hueStatusMsg.length()) {
     bool ok = (hueStatusMsg.indexOf("OK") >= 0) || (hueStatusMsg.indexOf("success") >= 0) || (hueStatusMsg.indexOf("Found") >= 0);
-    String c = ok ? "#1c3b24" : "#3b1c1c";
-    String b = ok ? "#7CFC9A" : "#ff8888";
-    page += "<div style='background:" + c + ";border:1px solid " + b + ";color:" + b + ";padding:10px 12px;border-radius:8px;margin-bottom:12px;font-weight:600;'>" + htmlEscape(hueStatusMsg) + "</div>";
+    page += "<div class='status " + String(ok ? "ok" : "bad") + "'>" + htmlEscape(hueStatusMsg) + "</div>";
   }
-  page += "<label style='display:flex;align-items:center;gap:10px;color:#edf2f7;margin-bottom:12px;'><input type='checkbox' name='hueEn' value='1'" + String(hueEn ? " checked" : "") + " style='width:auto;'>Flash Hue lights on alert</label>";
-  page += "<div class='grid'>";
-  page += "<div><label class='label'>Bridge IP</label><input name='hueBridge' value='" + htmlEscape(hueBridgeVal) + "' placeholder='192.168.1.10'><button type='submit' formmethod='POST' formaction='/huefind' style='margin-top:8px;background:#0f8a6a;'>Find bridge IP automatically</button></div>";
-  page += "<div><label class='label'>Pairing status</label><div style='color:" + String(huePaired ? "#7CFC9A" : "#ff8888") + ";padding-top:10px;'>" + String(huePaired ? "Paired ✓" : "Not paired") + "</div></div>";
-  page += "</div><div class='footer-note'>To pair: set the bridge IP and Save, press the round button on the Hue bridge, then tap Pair below (within 30s).</div></div>";
-  page += "</div></div>";
-
-  page += "<div class='panel' data-panel='widgets'>";
-  page += "<button type='button' class='panel-toggle' aria-expanded='true'><h2>Widget Customization</h2><span class='panel-chevron'>&#9662;</span></button>";
-  page += "<div class='panel-body'>";
-  page += "<p>Choose which widgets appear in the four Home slots below the clock card.</p>";
-  page += "<div class='grid'>";
-  for (int i = 0; i < HOME_SLOT_COUNT; i++) {
-    page += "<div><label class='label'>";
-    page += homeSlotLabel(i);
-    page += "</label><select name='homeSlot";
-    page += String(i);
-    page += "'>";
-    appendHomeWidgetOptions(page, homeSlotKeys[i]);
-    page += "</select></div>";
-  }
+  page += "<label class='check'><input type='checkbox' name='hueEn' value='1'" + String(hueEn ? " checked" : "") + ">Flash Hue lights on alert</label>";
+  page += "<div class='field'><label class='lbl'>Bridge IP</label><input name='hueBridge' value='" + htmlEscape(hueBridgeVal) + "' placeholder='192.168.1.10'></div>";
+  page += "<div class='field'><label class='lbl'>Pairing status</label> <span class='pill " + String(huePaired ? "ok" : "bad") + "'>" + String(huePaired ? "Paired" : "Not paired") + "</span></div>";
+  page += "<div class='btnrow'>";
+  page += "<button class='btn green' type='submit' formaction='/huefind'>1. Find bridge</button>";
+  page += "<button class='btn blue' type='submit' formaction='/huepair'>2. Pair</button>";
+  page += "<button class='btn purple' type='submit' formaction='/huetest'>3. Test lights</button>";
   page += "</div>";
+  page += "<div class='note'><b>Find</b> auto-fills the bridge IP. Then press the round button on the Hue bridge and tap <b>Pair</b> within 30 seconds. <b>Test</b> flashes the lights red to confirm.</div>";
   page += "</div></div>";
 
-  page += "</div><div class='stack'>";
+  page += "</div></form>";
 
-  page += "<button type='submit'>Save to Deskbuddy</button>";
-  page += "</div></div></form>";
-  page += "<form method='POST' action='/testalert' class='stack' style='margin-top:12px;'>";
-  page += "<button type='submit' style='background:#c0392b;'>Test red alert on device</button>";
-  page += "<div class='footer-note'>Triggers the full-screen alarm now so you can verify the screen and buzzer. Save your settings first.</div>";
-  page += "</form>";
-  page += "<form method='POST' action='/huepair' class='stack' style='margin-top:12px;'>";
-  page += "<button type='submit' style='background:#2d6cdf;'>Pair with Hue bridge</button>";
-  page += "<div class='footer-note'>Press the round button on the Hue bridge first, then tap this within 30 seconds. Result shows in the Hue panel above.</div>";
-  page += "</form>";
-  page += "<form method='POST' action='/huetest' class='stack' style='margin-top:12px;'>";
-  page += "<button type='submit' style='background:#8e44ad;'>Test Hue lights (flash red 3s)</button>";
-  page += "<div class='footer-note'>Flashes all lights red then restores them, to confirm the bridge connection works.</div>";
-  page += "</form>";
+  // ---- Scripts ----
   page += "<script>";
   page += "var colorNames={accent:{standard:'Standard',ice:'Ice',white:'White',cyan:'Cyan',mint:'Mint',green:'Green',blue:'Blue',purple:'Purple',pink:'Pink',orange:'Orange',amber:'Amber',red:'Red'},text:{standard:'Standard',ice:'Ice',white:'White',cyan:'Cyan',mint:'Mint',green:'Green',blue:'Blue',purple:'Purple',pink:'Pink',orange:'Orange',amber:'Amber',red:'Red'},bg:{slate:'Slate',deep:'Deep black',nordic:'Nordic blue',forest:'Forest',coffee:'Coffee',soft:'Soft dark',midnight:'Midnight',graphite:'Graphite',garnet:'Garnet',ochre:'Ochre'}};";
-  page += "var panelStorageKey='deskbuddy-panel-state-v1';";
-  page += "document.querySelectorAll('.swatch input').forEach(function(input){";
-  page += "input.addEventListener('change',function(){";
-  page += "document.querySelectorAll('.swatch input[name=\"'+input.name+'\"]').forEach(function(peer){";
-  page += "peer.closest('.swatch').classList.toggle('active', peer.checked);";
-  page += "});";
-  page += "var valueEl=document.getElementById(input.name+'-value');";
-  page += "if(valueEl&&colorNames[input.name]&&colorNames[input.name][input.value]){valueEl.textContent=colorNames[input.name][input.value];}";
-  page += "});";
-  page += "});";
-  page += "function readPanelState(){try{return JSON.parse(localStorage.getItem(panelStorageKey)||'{}');}catch(e){return {};}}";
-  page += "function writePanelState(state){localStorage.setItem(panelStorageKey,JSON.stringify(state));}";
-  page += "function applyPanelState(panel,collapsed){panel.classList.toggle('collapsed',collapsed);var btn=panel.querySelector('.panel-toggle');if(btn){btn.setAttribute('aria-expanded',collapsed?'false':'true');}}";
-  page += "var savedPanelState=readPanelState();";
-  page += "document.querySelectorAll('.panel[data-panel]').forEach(function(panel){";
-  page += "var panelId=panel.getAttribute('data-panel');";
-  page += "if(Object.prototype.hasOwnProperty.call(savedPanelState,panelId)){applyPanelState(panel,!!savedPanelState[panelId]);}";
-  page += "});";
-  page += "document.querySelectorAll('.panel-toggle').forEach(function(btn){";
-  page += "btn.addEventListener('click',function(){";
-  page += "var panel=btn.closest('.panel');";
-  page += "var collapsed=!panel.classList.contains('collapsed');";
-  page += "applyPanelState(panel,collapsed);";
-  page += "var state=readPanelState();";
-  page += "var panelId=panel.getAttribute('data-panel');";
-  page += "if(panelId){state[panelId]=collapsed;writePanelState(state);}";
-  page += "});";
-  page += "});";
+  page += "var tabKey='deskbuddy-tab-v2';";
+  page += "function showTab(id){document.querySelectorAll('.tab').forEach(function(t){t.classList.toggle('active',t.dataset.tab===id);});document.querySelectorAll('.pane').forEach(function(p){p.classList.toggle('active',p.dataset.pane===id);});try{localStorage.setItem(tabKey,id);}catch(e){}}";
+  page += "document.querySelectorAll('.tab').forEach(function(t){t.addEventListener('click',function(){showTab(t.dataset.tab);});});";
+  String initialTab = hueStatusMsg.length() ? "hue" : "";
+  page += "var initialTab='" + initialTab + "';var savedTab='';try{savedTab=localStorage.getItem(tabKey)||'';}catch(e){}var useTab=initialTab||savedTab;";
+  page += "if(useTab&&document.querySelector('.pane[data-pane=\"'+useTab+'\"]')){showTab(useTab);}";
+  page += "document.querySelectorAll('.swatch input').forEach(function(input){input.addEventListener('change',function(){document.querySelectorAll('.swatch input[name=\"'+input.name+'\"]').forEach(function(peer){peer.closest('.swatch').classList.toggle('active',peer.checked);});var v=document.getElementById(input.name+'-value');if(v&&colorNames[input.name]&&colorNames[input.name][input.value]){v.textContent=colorNames[input.name][input.value];}});});";
   page += "</script>";
-  page += "</div></body></html>";
+
+  hueStatusMsg = "";  // shown once
+  page += "</body></html>";
 
   server.send(200, "text/html; charset=utf-8", page);
 }
@@ -463,4 +397,3 @@ void setupWebServer() {
   server.on("/huefind", HTTP_POST, handleHueFind);
   server.begin();
 }
-
