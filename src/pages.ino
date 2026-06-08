@@ -268,11 +268,15 @@ void updateStatusDynamic() {
 }
 
 void drawCurrentPageFull() {
+  // If the Hue page is showing but the bridge is no longer paired, fall back.
+  if (currentPage == PAGE_HUE && !hueReady()) currentPage = PAGE_HOME;
+
   switch (currentPage) {
     case PAGE_HOME:    drawHomePageFull(); break;
     case PAGE_WEATHER: drawWeatherPageFull(); break;
     case PAGE_NOTES:   drawNotesPageFull(); break;
     case PAGE_STATUS:  drawStatusPageFull(); break;
+    case PAGE_HUE:     drawHuePageFull(); break;
   }
 
   if (focusMenuOpen && currentPage == PAGE_HOME) drawFocusMenuOverlay(true);
@@ -295,6 +299,7 @@ void updateCurrentPageDynamic() {
     case PAGE_WEATHER: updateWeatherDynamic(); break;
     case PAGE_NOTES:   updateNotesDynamic(); break;
     case PAGE_STATUS:  updateStatusDynamic(); break;
+    case PAGE_HUE:     updateHueDynamic(); break;
   }
 }
 
@@ -397,17 +402,159 @@ bool handleStatusTouch(int x, int y) {
 // =========================================================
 // NAVIGATION
 // =========================================================
+// Nav pages are dynamic: the Hue tab only appears once the bridge is paired.
+int buildNavPages(Page* out) {
+  int n = 0;
+  out[n++] = PAGE_HOME;
+  out[n++] = PAGE_WEATHER;
+  out[n++] = PAGE_NOTES;
+  out[n++] = PAGE_STATUS;
+  if (hueReady()) out[n++] = PAGE_HUE;
+  return n;
+}
+
+const char* pageName(Page p) {
+  switch (p) {
+    case PAGE_HOME:    return "Home";
+    case PAGE_WEATHER: return "Weather";
+    case PAGE_NOTES:   return "Notes";
+    case PAGE_STATUS:  return "Status";
+    case PAGE_HUE:     return "Hue";
+  }
+  return "";
+}
+
 void handleNavTouch(int x, int y) {
   if (y < SCREEN_H - NAV_H) return;
 
-  int btnW = SCREEN_W / 4;
+  Page pages[5];
+  int count = buildNavPages(pages);
+  int btnW = SCREEN_W / count;
   int idx = x / btnW;
-  if (idx < 0 || idx > 3) return;
+  if (idx < 0 || idx >= count) return;
 
-  Page newPage = (Page)idx;
+  Page newPage = pages[idx];
   if (newPage != currentPage) {
     currentPage = newPage;
     pageDirty = true;
   }
 }
 
+
+// =========================================================
+// HUE CONTROL PAGE (all lights = group 0)
+// =========================================================
+static const int HUE_TOG_X = 8, HUE_TOG_Y = 46, HUE_TOG_W = 224, HUE_TOG_H = 58;
+static const int HUE_MIN_X = 8, HUE_PB_Y = 134, HUE_BTN_W = 60, HUE_BTN_H = 52;
+static const int HUE_PLUS_X = 172;
+static const int HUE_BAR_X = 76, HUE_BAR_W = 88;
+static const int HUE_PRE_Y = 218, HUE_PRE_H = 48;
+
+void drawHueToggle() {
+  uint16_t bg = huePgOn ? COL_ACCENT : COL_PANEL;
+  uint16_t fg = huePgOn ? TFT_BLACK : COL_DIM;
+  tft.fillRoundRect(HUE_TOG_X, HUE_TOG_Y, HUE_TOG_W, HUE_TOG_H, 12, bg);
+  tft.drawRoundRect(HUE_TOG_X, HUE_TOG_Y, HUE_TOG_W, HUE_TOG_H, 12, huePgOn ? COL_ACCENT : COL_STROKE);
+  tft.fillCircle(HUE_TOG_X + 30, HUE_TOG_Y + HUE_TOG_H / 2, 11, huePgOn ? TFT_BLACK : COL_STROKE);
+  tft.setTextDatum(MC_DATUM);
+  tft.setTextColor(fg, bg);
+  tft.drawString(huePgOn ? "ALL LIGHTS ON" : "ALL LIGHTS OFF", HUE_TOG_X + HUE_TOG_W / 2 + 12, HUE_TOG_Y + HUE_TOG_H / 2, 2);
+  tft.setTextDatum(TL_DATUM);
+}
+
+void drawHueBri() {
+  tft.fillRoundRect(HUE_MIN_X, HUE_PB_Y, HUE_BTN_W, HUE_BTN_H, 10, COL_PANEL);
+  tft.drawRoundRect(HUE_MIN_X, HUE_PB_Y, HUE_BTN_W, HUE_BTN_H, 10, COL_STROKE);
+  tft.fillRoundRect(HUE_PLUS_X, HUE_PB_Y, HUE_BTN_W, HUE_BTN_H, 10, COL_PANEL);
+  tft.drawRoundRect(HUE_PLUS_X, HUE_PB_Y, HUE_BTN_W, HUE_BTN_H, 10, COL_STROKE);
+  tft.setTextDatum(MC_DATUM);
+  tft.setTextColor(COL_TEXT, COL_PANEL);
+  tft.drawString("-", HUE_MIN_X + HUE_BTN_W / 2, HUE_PB_Y + HUE_BTN_H / 2, 4);
+  tft.drawString("+", HUE_PLUS_X + HUE_BTN_W / 2, HUE_PB_Y + HUE_BTN_H / 2, 4);
+
+  int pct = (huePgBri * 100) / 254;
+  tft.fillRect(HUE_BAR_X, HUE_PB_Y, HUE_BAR_W, HUE_BTN_H, COL_BG);
+  tft.setTextColor(huePgOn ? COL_TEXT : COL_DIM, COL_BG);
+  tft.drawString(String(pct) + "%", HUE_BAR_X + HUE_BAR_W / 2, HUE_PB_Y + 12, 2);
+  int trackY = HUE_PB_Y + 30, trackH = 12;
+  tft.fillRoundRect(HUE_BAR_X, trackY, HUE_BAR_W, trackH, 6, COL_PANEL);
+  int fillW = (HUE_BAR_W * pct) / 100;
+  if (fillW > 4) tft.fillRoundRect(HUE_BAR_X, trackY, fillW, trackH, 6, huePgOn ? COL_ACCENT : COL_STROKE);
+  tft.setTextDatum(TL_DATUM);
+}
+
+void drawHuePresets() {
+  tft.setTextColor(COL_DIM, COL_BG);
+  tft.drawString("Presets", 8, 196, 2);
+  const uint16_t cols[5] = {0xFD20, 0xAEDF, COL_RED, COL_GREEN, 0x3D9F}; // warm, cool, red, green, blue
+  for (int i = 0; i < 5; i++) {
+    int x = 8 + i * 45;
+    tft.fillRoundRect(x, HUE_PRE_Y, 42, HUE_PRE_H, 10, cols[i]);
+    tft.drawRoundRect(x, HUE_PRE_Y, 42, HUE_PRE_H, 10, COL_STROKE);
+  }
+}
+
+void drawHuePageFull() {
+  tft.fillScreen(COL_BG);
+  drawTopBar("Hue Lights");
+  drawNavBar();
+
+  bool on; int bri;
+  if (hueGetGroup(on, bri)) { huePgOn = on; if (bri > 0) huePgBri = bri; }
+
+  tft.setTextColor(COL_DIM, COL_BG);
+  tft.drawString("Brightness", 8, 114, 2);
+  drawHueToggle();
+  drawHueBri();
+  drawHuePresets();
+
+  pageDirty = false;
+  lastDrawnPage = PAGE_HUE;
+}
+
+void updateHueDynamic() {
+  // No periodic refresh; the screen reflects local state and updates on touch.
+}
+
+bool handleHueTouch(int x, int y) {
+  if (currentPage != PAGE_HUE) return false;
+
+  if (x >= HUE_TOG_X && x < HUE_TOG_X + HUE_TOG_W && y >= HUE_TOG_Y && y < HUE_TOG_Y + HUE_TOG_H) {
+    huePgOn = !huePgOn;
+    hueSetGroupOn(huePgOn);
+    drawHueToggle();
+    drawHueBri();
+    return true;
+  }
+  if (x >= HUE_MIN_X && x < HUE_MIN_X + HUE_BTN_W && y >= HUE_PB_Y && y < HUE_PB_Y + HUE_BTN_H) {
+    huePgBri = constrain(huePgBri - 38, 1, 254);
+    huePgOn = true;
+    hueSetGroupBri(huePgBri);
+    drawHueToggle();
+    drawHueBri();
+    return true;
+  }
+  if (x >= HUE_PLUS_X && x < HUE_PLUS_X + HUE_BTN_W && y >= HUE_PB_Y && y < HUE_PB_Y + HUE_BTN_H) {
+    huePgBri = constrain(huePgBri + 38, 1, 254);
+    huePgOn = true;
+    hueSetGroupBri(huePgBri);
+    drawHueToggle();
+    drawHueBri();
+    return true;
+  }
+  if (y >= HUE_PRE_Y && y < HUE_PRE_Y + HUE_PRE_H && x >= 8 && x < 233) {
+    int idx = (x - 8) / 45;
+    switch (idx) {
+      case 0: hueSetGroupCt(454); break;            // warm white
+      case 1: hueSetGroupCt(250); break;            // cool white
+      case 2: hueSetGroupHueSat(0, 254); break;     // red
+      case 3: hueSetGroupHueSat(25500, 254); break; // green
+      case 4: hueSetGroupHueSat(46920, 254); break; // blue
+      default: return true;
+    }
+    huePgOn = true;
+    drawHueToggle();
+    return true;
+  }
+  return false;
+}

@@ -18,3 +18,11 @@ String hueTest();        // flash red ~3s then restore, returns status text
 void   hueAlertOn();     // capture current state + turn all lights red
 void   hueReflash();     // re-trigger the breathe effect during a long alert
 void   hueAlertOff();    // restore the pre-alert light state
+
+// On-device control screen (group 0 = all lights)
+bool   hueReady();                       // true once paired (token present)
+bool   hueGetGroup(bool& on, int& bri);  // read all-lights state
+void   hueSetGroupOn(bool on);
+void   hueSetGroupBri(int bri);          // 1..254
+void   hueSetGroupCt(int ct);            // colour temperature (153 cool .. 500 warm)
+void   hueSetGroupHueSat(int hue, int sat);

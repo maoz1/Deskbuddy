@@ -161,11 +161,16 @@ enum Page {
   PAGE_HOME = 0,
   PAGE_WEATHER = 1,
   PAGE_NOTES = 2,
-  PAGE_STATUS = 3
+  PAGE_STATUS = 3,
+  PAGE_HUE = 4          // only present in nav when the Hue bridge is paired
 };
 
 Page currentPage = PAGE_HOME;
 Page lastDrawnPage = (Page)-1;
+
+// Hue control-screen state (all lights)
+bool huePgOn = false;
+int  huePgBri = 128;
 
 unsigned long lastClockTick = 0;
 unsigned long lastDataTick  = 0;
@@ -1125,7 +1130,7 @@ void loop() {
         if (!manualDimMode) {
           wakeDisplay();
         } else {
-          if (!handleHomeTouch(tx, ty) && !handleStatusTouch(tx, ty)) {
+          if (!handleHomeTouch(tx, ty) && !handleStatusTouch(tx, ty) && !handleHueTouch(tx, ty)) {
             handleNavTouch(tx, ty);
           }
         }

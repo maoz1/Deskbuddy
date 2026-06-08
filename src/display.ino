@@ -41,22 +41,23 @@ void drawNavBar() {
   tft.fillRect(0, y, SCREEN_W, NAV_H, COL_PANEL_ALT);
   tft.drawFastHLine(0, y, SCREEN_W, COL_STROKE);
 
-  const int btnW = SCREEN_W / 4;
-  const char* names[4] = {"Home", "Weather", "Notes", "Status"};
+  Page pages[5];
+  int count = buildNavPages(pages);
+  const int btnW = SCREEN_W / count;
 
-  for (int i = 0; i < 4; i++) {
+  for (int i = 0; i < count; i++) {
     int bx = i * btnW;
-    bool active = ((int)currentPage == i);
+    bool active = (pages[i] == currentPage);
 
     uint16_t bg = active ? COL_ACCENT : COL_PANEL;
     uint16_t fg = active ? TFT_BLACK : COL_TEXT;
 
-    tft.fillRoundRect(bx + 4, y + 6, btnW - 8, NAV_H - 12, 8, bg);
-    tft.drawRoundRect(bx + 4, y + 6, btnW - 8, NAV_H - 12, 8, active ? COL_ACCENT : COL_STROKE);
+    tft.fillRoundRect(bx + 3, y + 6, btnW - 6, NAV_H - 12, 8, bg);
+    tft.drawRoundRect(bx + 3, y + 6, btnW - 6, NAV_H - 12, 8, active ? COL_ACCENT : COL_STROKE);
 
     tft.setTextDatum(MC_DATUM);
     tft.setTextColor(fg, bg);
-    tft.drawString(names[i], bx + btnW / 2, y + NAV_H / 2, 1);
+    tft.drawString(pageName(pages[i]), bx + btnW / 2, y + NAV_H / 2, 1);
   }
 
   tft.setTextDatum(TL_DATUM);

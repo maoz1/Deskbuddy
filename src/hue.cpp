@@ -171,3 +171,43 @@ String hueTest() {
   hueEnabled = wasEnabled;
   return "Test OK - lights flashed red and restored";
 }
+
+// ---- On-device control screen helpers (all lights = group 0) ----
+bool hueReady() { return hueUser.length() > 0; }
+
+bool hueGetGroup(bool& on, int& bri) {
+  if (!hueReady()) return false;
+  String resp;
+  if (!hueRequest("GET", "/api/" + hueUser + "/groups/0", "", resp)) return false;
+  JsonDocument doc;
+  if (deserializeJson(doc, resp)) return false;
+  on  = doc["state"]["any_on"] | false;
+  bri = doc["action"]["bri"] | 0;
+  return true;
+}
+
+void hueSetGroupOn(bool on) {
+  if (!hueReady()) return;
+  String resp;
+  hueRequest("PUT", "/api/" + hueUser + "/groups/0/action", on ? "{\"on\":true}" : "{\"on\":false}", resp);
+}
+
+void hueSetGroupBri(int bri) {
+  if (!hueReady()) return;
+  bri = constrain(bri, 1, 254);
+  String resp;
+  hueRequest("PUT", "/api/" + hueUser + "/groups/0/action", "{\"on\":true,\"bri\":" + String(bri) + "}", resp);
+}
+
+void hueSetGroupCt(int ct) {
+  if (!hueReady()) return;
+  String resp;
+  hueRequest("PUT", "/api/" + hueUser + "/groups/0/action", "{\"on\":true,\"ct\":" + String(ct) + "}", resp);
+}
+
+void hueSetGroupHueSat(int hue, int sat) {
+  if (!hueReady()) return;
+  String resp;
+  hueRequest("PUT", "/api/" + hueUser + "/groups/0/action",
+             "{\"on\":true,\"hue\":" + String(hue) + ",\"sat\":" + String(sat) + "}", resp);
+}
